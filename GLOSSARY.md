@@ -9,8 +9,12 @@ The set of people who share one Queue. A household is the typical Group, but a t
 _Avoid_: Household (as the canonical term), team, organization
 
 **Member**:
-A person who belongs to a Group. All Members are equal; there are no roles.
+A person's membership in a Group, held through their Account. All Members are equal; there are no roles.
 _Avoid_: User, participant
+
+**Account**:
+The sign-in identity of a person, independent of any Group. An Account has one Member per Group it belongs to.
+_Avoid_: User, profile
 
 **Chore**:
 A unit of work that appears in a Group's Queue, whether housework or any other work.

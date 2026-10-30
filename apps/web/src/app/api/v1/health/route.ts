@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
   try {
-    await getDeps().db.execute(sql`select 1`);
+    const { db } = getDeps();
+    await db.execute(sql`select 1`);
   } catch {
     return errorResponse("unavailable", "Database is unavailable");
   }

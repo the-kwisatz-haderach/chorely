@@ -1,0 +1,8 @@
+{
+  "name": "@chorely/tooling",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "typecheck": "echo skip", "test": "vitest run" },
+  "devDependencies": { "vitest": "^2.1.0", "eslint": "^9.0.0" }
+}

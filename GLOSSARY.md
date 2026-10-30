@@ -44,6 +44,10 @@ _Avoid_: Pick up, grab
 A Chore that comes back into the Queue on a schedule after it is completed.
 _Avoid_: Repeating task, routine
 
+**Occurrence**:
+One instance of a Recurring Chore. A Recurring Chore has only one open Occurrence at a time; completing it creates the next.
+_Avoid_: Instance, repeat
+
 **Invite link**:
 A shareable link that lets a person join a Group as a Member.
 _Avoid_: Invitation code

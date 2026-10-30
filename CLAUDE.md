@@ -11,3 +11,7 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Workflow
+
+Run `/implement` on a feature branch off `main`, push it, and open a PR whose body says `Closes #<ticket>`.

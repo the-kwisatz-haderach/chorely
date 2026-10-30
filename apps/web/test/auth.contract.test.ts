@@ -100,6 +100,30 @@ describe("email-code sign-in (contract, real Postgres)", () => {
     expect((await send(21, "5.6.7.8")).status).toBe(200);
   });
 
+  it("ignores spoofed X-Forwarded-For entries, counting the address the proxy appended", async () => {
+    app = await createTestApp();
+    const send = (i: number) =>
+      app.rawFetch("/auth/request-code", { method: "POST", headers: { "x-forwarded-for": `fake-${i}, 1.2.3.4` }, body: { email: `u${i}@example.com` } });
+    for (let i = 0; i < 20; i++) expect((await send(i)).status).toBe(200);
+    expect((await send(20)).status).toBe(429);
+  });
+
+  it("caps verify attempts per email across re-requested codes", async () => {
+    app = await createTestApp();
+    const attempt = () => app.client.verifyCode({ email: "ada@example.com", code: "000000" }).catch((e: unknown) => e);
+    let last: unknown;
+    for (let round = 0; round < 3; round++) {
+      await app.client.requestCode({ email: "ada@example.com" });
+      for (let i = 0; i < 4; i++) last = await attempt();
+    }
+    // 12 wrong guesses across 3 fresh codes: the budget (10) is exhausted.
+    expect(last).toMatchObject({ code: "too_many_attempts" });
+    await expect(app.client.verifyCode({ email: "ada@example.com", code: app.lastCode("ada@example.com") })).rejects.toMatchObject({ code: "too_many_attempts" });
+    app.advance(10 * 60_000 + 1);
+    await app.client.requestCode({ email: "ada@example.com" });
+    await expect(app.client.verifyCode({ email: "ada@example.com", code: app.lastCode("ada@example.com") })).resolves.toBeDefined();
+  });
+
   it("only the newest code for an email works", async () => {
     app = await createTestApp();
     await app.client.requestCode({ email: "ada@example.com" });
@@ -218,7 +242,7 @@ describe("cleanup", () => {
     app = await createTestApp();
     await signIn("ada@example.com"); // leaves a consumed code, a session, and rate-limit rows
     await app.client.requestCode({ email: "bob@example.com" });
-    expect(await app.tableCounts()).toMatchObject({ loginCodes: 2, sessions: 1, rateLimits: 3 });
+    expect(await app.tableCounts()).toMatchObject({ loginCodes: 2, sessions: 1, rateLimits: 4 });
 
     app.advance(31 * 24 * 60 * 60_000);
     await app.client.requestCode({ email: "cy@example.com" });

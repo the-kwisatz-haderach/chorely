@@ -49,7 +49,15 @@ export function clearedSessionCookie(): string {
   return `${COOKIE}=; ${cookieAttributes()}; Max-Age=0`;
 }
 
-/** First hop of X-Forwarded-For (set by Cloud Run's front end), else a shared bucket. */
+/**
+ * The client IP as appended by our own proxy. Entries to the left of it are client-supplied and
+ * spoofable, so we count from the right: `TRUSTED_PROXY_HOPS` (default 1) proxies append to the header.
+ */
 export function clientIp(req: Request): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const hops = Math.max(1, Number(process.env.TRUSTED_PROXY_HOPS) || 1);
+  const chain = (req.headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter(Boolean);
+  return chain[chain.length - hops] ?? "unknown";
 }

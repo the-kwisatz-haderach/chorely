@@ -15,6 +15,8 @@ const SESSION_REFRESH_AFTER_MS = 60 * 60_000;
 
 const EMAIL_LIMIT = { max: 3, windowMs: 10 * 60_000 };
 const IP_LIMIT = { max: 20, windowMs: 60 * 60_000 };
+/** Verify attempts per email across all of its codes, so re-requesting a code cannot reset the guess budget. */
+const VERIFY_LIMIT = { max: 10, windowMs: 10 * 60_000 };
 /** Rate-limit rows older than the longest window are dead weight. */
 const RATE_LIMIT_RETENTION_MS = IP_LIMIT.windowMs;
 
@@ -71,7 +73,7 @@ export async function requestCode(deps: Deps, email: string, ip: string): Promis
   await deps.sendEmail({
     to: email,
     subject: "Your Chorely sign-in code",
-    text: `Your Chorely sign-in code is ${code}. It expires in 10 minutes.`,
+    text: `Your Chorely sign-in code is ${code}. It expires in ${CODE_TTL_MS / 60_000} minutes.`,
   });
 }
 
@@ -84,6 +86,7 @@ export async function verifyCode(
   const { db } = deps;
   const now = deps.now();
   const invalid = new AppError("invalid_code", "That code is wrong or has expired.");
+  if ((await hit(db, `verify:email:${email}`, VERIFY_LIMIT.windowMs, now)) > VERIFY_LIMIT.max) throw tooManyAttempts();
 
   const [row] = await db
     .select()

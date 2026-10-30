@@ -13,7 +13,10 @@ let current: Deps | undefined;
 
 function chooseEmail(): SendEmail {
   const outbox = process.env.EMAIL_OUTBOX_DIR;
-  if (outbox) return fileEmail(outbox);
+  if (outbox) {
+    if (process.env.NODE_ENV === "production") throw new Error("EMAIL_OUTBOX_DIR is for tests and must not be set in production");
+    return fileEmail(outbox);
+  }
   const key = process.env.RESEND_API_KEY;
   if (key) return resendEmail(key, process.env.EMAIL_FROM ?? "Chorely <onboarding@resend.dev>");
   return logEmail;

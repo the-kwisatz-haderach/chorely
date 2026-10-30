@@ -5,17 +5,47 @@ import { createDb } from "../src/server/db/client";
 import { accounts } from "../src/server/db/schema";
 import { setDeps } from "../src/server/deps";
 import type { Email } from "../src/server/email";
-import * as health from "../src/app/api/v1/health/route";
 import { newId } from "../src/server/ids";
 import { withAdmin } from "./db-admin";
 import { databaseUrl, TEMPLATE_DB } from "./db-urls";
 
-type Handler = (req: Request) => Promise<Response> | Response;
+type Handler = (req: Request, ctx: { params: Promise<Record<string, string>> }) => Promise<Response> | Response;
+type RouteModule = Partial<Record<string, Handler>>;
 
-/** Route table mirroring `src/app/api/v1`. Add new route modules here. */
-const routes: Record<string, Partial<Record<string, Handler>>> = {
-  "/api/v1/health": { GET: health.GET },
-};
+interface Route {
+  pattern: RegExp;
+  paramNames: string[];
+  module: RouteModule;
+}
+
+/** Discovers every `src/app/api/v1/**\/route.ts`, so new routes need no harness edit. */
+const routes: Route[] = Object.entries(
+  import.meta.glob<RouteModule>("../src/app/api/v1/**/route.ts", { eager: true }),
+).map(([file, module]) => {
+  const segments = file.replace("../src/app", "").replace(/\/route\.ts$/, "").split("/").filter(Boolean);
+  const paramNames: string[] = [];
+  const pattern = segments
+    .map((segment) => {
+      const param = /^\[(\w+)\]$/.exec(segment)?.[1];
+      if (!param) return `/${segment}`;
+      paramNames.push(param);
+      return "/([^/]+)";
+    })
+    .join("");
+  return { pattern: new RegExp(`^${pattern}$`), paramNames, module };
+});
+
+function findRoute(pathname: string, method: string) {
+  for (const route of routes) {
+    const match = route.pattern.exec(pathname);
+    const handler = route.module[method];
+    if (match && handler) {
+      const params = Object.fromEntries(route.paramNames.map((name, i) => [name, match[i + 1] ?? ""]));
+      return { handler, params };
+    }
+  }
+  return undefined;
+}
 
 export interface TestApp {
   client: ApiClient;
@@ -30,9 +60,9 @@ export interface TestApp {
 
 /** Calls route handlers in-process, with no HTTP server. */
 const routeFetch: FetchLike = async (url, init) => {
-  const handler = routes[new URL(url).pathname]?.[init?.method ?? "GET"];
-  const res = handler
-    ? await handler(new Request(url, init))
+  const found = findRoute(new URL(url).pathname, init?.method ?? "GET");
+  const res = found
+    ? await found.handler(new Request(url, init), { params: Promise.resolve(found.params) })
     : Response.json({ code: "not_found", message: "No such route" }, { status: 404 });
   return { status: res.status, text: () => res.text() };
 };

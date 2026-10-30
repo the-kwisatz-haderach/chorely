@@ -1,0 +1,281 @@
+<!doctype html>
+<!--
+PROTOTYPE - THROWAWAY. Issue #10 (v1 product scope), Q10: the main Queue screen.
+Three structurally different variants, switchable with ?variant=A|B|C, the bottom bar, or the arrow keys.
+  A  Flat list + drag handle + bottom-sheet detail
+  B  "Next up" hero card + compact rest + full-page detail
+  C  Dense numbered table + up/down buttons + inline-expanding detail
+All state is in memory. Open the file directly in a browser; best viewed at phone width.
+Shared: add (front/back), reorder, Claim, complete + Undo toast (reverses next Occurrence), edit/assign/delete, Due date + overdue.
+Not in scope: filtering, Done screen, Group settings.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chorely - Queue prototype</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; background: #f4f1ea; color: #222; padding-bottom: 90px; }
+  #app { max-width: 480px; margin: 0 auto; padding: 12px; }
+  button, input, select, textarea { font: inherit; }
+  button { cursor: pointer; border: 1px solid #ccc; background: #fff; border-radius: 8px; padding: 6px 10px; }
+  button.primary { background: #2f6f4f; color: #fff; border-color: #2f6f4f; }
+  button.danger { color: #b3261e; border-color: #e5b4b0; }
+  button.ghost { border-color: transparent; background: transparent; }
+  input, select, textarea { border: 1px solid #ccc; border-radius: 8px; padding: 7px 9px; background: #fff; width: 100%; }
+  h1 { font-size: 20px; margin: 4px 0 2px; }
+  .sub { color: #777; font-size: 13px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .grow { flex: 1; min-width: 0; }
+  .meta { font-size: 12px; color: #777; }
+  .overdue { color: #b3261e; font-weight: 600; }
+  .today { color: #a35a00; font-weight: 600; }
+  .item { background: #fff; border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; border: 1px solid #e6e1d6; position: relative; }
+  .item.dragover-top { box-shadow: 0 -3px 0 #2f6f4f; }
+  .item.dragover-bottom { box-shadow: 0 3px 0 #2f6f4f; }
+  .handle { cursor: grab; color: #aaa; user-select: none; padding: 0 4px; }
+  .chk { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #999; background: #fff; padding: 0; flex: none; }
+  .chk:hover { background: #cfe8d8; border-color: #2f6f4f; }
+  .claim { background: #fff3d6; border-color: #e8c66a; font-size: 12px; padding: 3px 8px; }
+  .chip { font-size: 12px; background: #e8efe9; border-radius: 99px; padding: 2px 8px; white-space: nowrap; }
+  .menu { position: absolute; right: 6px; top: 38px; background: #fff; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 6px 18px #0002; z-index: 5; min-width: 150px; }
+  .menu button { display: block; width: 100%; text-align: left; border: 0; border-radius: 0; background: none; padding: 9px 12px; }
+  .menu button:hover { background: #f1f1f1; }
+  .seg { display: inline-flex; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; flex: none; }
+  .seg button { border: 0; border-radius: 0; background: #fff; padding: 6px 10px; }
+  .seg button.on { background: #2f6f4f; color: #fff; }
+  .form label { display: block; font-size: 12px; color: #666; margin: 8px 0 2px; }
+  .sheet-bg { position: fixed; inset: 0; background: #0006; z-index: 20; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; max-width: 480px; margin: 0 auto; background: #fff; border-radius: 16px 16px 0 0; padding: 14px; z-index: 21; max-height: 85vh; overflow: auto; }
+  .page { position: fixed; inset: 0; background: #f4f1ea; z-index: 21; padding: 14px; overflow: auto; }
+  .page > div { max-width: 480px; margin: 0 auto; }
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 64px; background: #222; color: #fff; padding: 9px 14px; border-radius: 10px; z-index: 40; display: flex; gap: 12px; align-items: center; }
+  .toast button { background: none; color: #8fd6ad; border: 0; font-weight: 700; padding: 0; }
+  .hero { background: #2f6f4f; color: #fff; border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  .hero .meta { color: #cfe8d8; }
+  .hero .overdue, .hero .today { color: #ffd9a0; }
+  .hero button { border-color: #ffffff55; }
+  .fab { position: fixed; right: 18px; bottom: 70px; width: 54px; height: 54px; border-radius: 50%; font-size: 28px; padding: 0; z-index: 15; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; }
+  td { padding: 6px 6px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  td.n { color: #aaa; width: 22px; text-align: right; }
+  td.exp { background: #faf8f2; padding: 10px 12px; }
+  .arrows button { padding: 0 6px; line-height: 1.2; }
+  #switcher { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; border-radius: 99px; padding: 6px 10px; display: flex; gap: 12px; align-items: center; z-index: 99; box-shadow: 0 4px 14px #0006; font-size: 13px; }
+  #switcher button { background: #333; color: #fff; border: 0; border-radius: 99px; width: 28px; height: 28px; padding: 0; }
+</style>
+<div id="app"></div>
+<div id="switcher"></div>
+<script>
+const ME = 'Alex';
+const MEMBERS = ['Alex', 'Sam', 'Jo'];
+const VARIANTS = { A: 'Flat list + sheet', B: 'Next-up hero + page', C: 'Dense table + inline' };
+const REPEATS = { '': 'Does not repeat', daily: 'Every day', weekly: 'Every week', monthly: 'Every month' };
+const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+let uid = 10;
+const S = {
+  chores: [
+    { id: 1, title: 'Take out recycling', note: '', due: day(-2), assignee: null, repeat: 'weekly' },
+    { id: 2, title: 'Clean bathroom', note: 'Use the new spray under the sink', due: day(0), assignee: 'Sam', repeat: '' },
+    { id: 3, title: 'Buy dishwasher tablets', note: '', due: null, assignee: null, repeat: '' },
+    { id: 4, title: 'Vacuum living room', note: '', due: day(3), assignee: 'Alex', repeat: 'weekly' },
+    { id: 5, title: 'Water the plants', note: 'Not the cactus', due: day(5), assignee: null, repeat: 'daily' },
+    { id: 6, title: 'Call landlord about the heater', note: '', due: null, assignee: 'Jo', repeat: '' },
+  ],
+  openId: null, menuId: null, addAt: 'back', addOpen: false, draft: '', toast: null, toastTimer: null,
+};
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const find = id => S.chores.find(c => c.id === id);
+const variant = () => { const v = new URLSearchParams(location.search).get('variant'); return VARIANTS[v] ? v : 'A'; };
+
+function dueInfo(c) {
+  if (!c.due) return { text: '', cls: '' };
+  const diff = Math.round((new Date(c.due) - new Date(day(0))) / 864e5);
+  if (diff < 0) return { text: `Overdue ${-diff}d`, cls: 'overdue' };
+  if (diff === 0) return { text: 'Due today', cls: 'today' };
+  if (diff === 1) return { text: 'Due tomorrow', cls: '' };
+  return { text: 'Due ' + c.due, cls: '' };
+}
+const metaLine = c => {
+  const d = dueInfo(c);
+  return [d.text && `<span class="${d.cls}">${d.text}</span>`, c.repeat && `↻ ${REPEATS[c.repeat].toLowerCase()}`, c.note && '📝'].filter(Boolean).join(' · ');
+};
+const who = c => c.assignee
+  ? `<span class="chip">${esc(c.assignee === ME ? 'You' : c.assignee)}</span>`
+  : `<button class="claim" data-a="claim" data-id="${c.id}">Claim</button>`;
+
+// ---- mutations (stubs) ----
+function snapshot() { return JSON.stringify(S.chores); }
+function showToast(text, undoSnap) {
+  clearTimeout(S.toastTimer);
+  S.toast = { text, undoSnap };
+  S.toastTimer = setTimeout(() => { S.toast = null; render(); }, 8000);
+}
+function insertAt(c, where) { where === 'front' ? S.chores.unshift(c) : S.chores.push(c); }
+const act = {
+  add(where) {
+    const t = S.draft.trim(); if (!t) return;
+    // Due date seeds position in the real app; the prototype just honours front/back
+    insertAt({ id: ++uid, title: t, note: '', due: null, assignee: null, repeat: '' }, where || S.addAt);
+    S.draft = ''; S.addOpen = false;
+  },
+  claim(id) { find(id).assignee = ME; },
+  complete(id) {
+    const snap = snapshot(); const c = find(id);
+    S.chores = S.chores.filter(x => x.id !== id);
+    let text = `Completed “${c.title}”`;
+    if (c.repeat) { // next Occurrence: new row, back of the queue, unassigned
+      S.chores.push({ ...c, id: ++uid, assignee: null, due: day({ daily: 1, weekly: 7, monthly: 30 }[c.repeat]) });
+      text += ' · next Occurrence added';
+    }
+    showToast(text, snap);
+  },
+  front(id) { const c = find(id); S.chores = [c, ...S.chores.filter(x => x !== c)]; S.menuId = null; },
+  back(id) { const c = find(id); S.chores = [...S.chores.filter(x => x !== c), c]; S.menuId = null; },
+  up(id) { const i = S.chores.findIndex(c => c.id === id); if (i > 0) [S.chores[i - 1], S.chores[i]] = [S.chores[i], S.chores[i - 1]]; },
+  down(id) { const i = S.chores.findIndex(c => c.id === id); if (i < S.chores.length - 1) [S.chores[i + 1], S.chores[i]] = [S.chores[i], S.chores[i + 1]]; },
+  open(id) { S.openId = id; S.menuId = null; },
+  close() { S.openId = null; },
+  menu(id) { S.menuId = S.menuId === id ? null : id; },
+  del(id) {
+    const c = find(id);
+    const msg = c.repeat ? `Delete “${c.title}”?\nOK = delete and stop repeating.` : `Delete “${c.title}”?`;
+    if (!confirm(msg)) return;
+    S.chores = S.chores.filter(x => x.id !== id); S.openId = null; S.menuId = null;
+  },
+  undo() { S.chores = JSON.parse(S.toast.undoSnap); S.toast = null; },
+  setAt(w) { S.addAt = w; },
+  toggleAdd() { S.addOpen = !S.addOpen; },
+  move(id, beforeId, after) { // drag and drop
+    const c = find(id); if (!c || id === beforeId) return;
+    S.chores = S.chores.filter(x => x !== c);
+    const i = S.chores.findIndex(x => x.id === beforeId);
+    S.chores.splice(after ? i + 1 : i, 0, c);
+  },
+};
+
+// ---- shared pieces ----
+const menu = c => S.menuId !== c.id ? '' : `<div class="menu">
+  <button data-a="front" data-id="${c.id}">⤒ Move to front</button>
+  <button data-a="back" data-id="${c.id}">⤓ Move to back</button>
+  <button data-a="open" data-id="${c.id}">✎ Edit</button>
+  <button data-a="del" data-id="${c.id}" style="color:#b3261e">🗑 Delete</button></div>`;
+const editForm = c => `<div class="form">
+  <label>Title</label><input data-f="title" data-id="${c.id}" value="${esc(c.title)}">
+  <label>Note</label><textarea data-f="note" data-id="${c.id}" rows="2">${esc(c.note)}</textarea>
+  <label>Due date</label><input type="date" data-f="due" data-id="${c.id}" value="${c.due || ''}">
+  <label>Assignee</label><select data-f="assignee" data-id="${c.id}">
+    <option value="">Unassigned</option>${MEMBERS.map(m => `<option ${c.assignee === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
+  <label>Repeats</label><select data-f="repeat" data-id="${c.id}">
+    ${Object.entries(REPEATS).map(([k, v]) => `<option value="${k}" ${c.repeat === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+  <div class="row" style="margin-top:12px">
+    <button class="danger" data-a="del" data-id="${c.id}">Delete</button><span class="grow"></span>
+    <button class="primary" data-a="close">Done</button></div></div>`;
+const seg = () => `<div class="seg"><button class="${S.addAt === 'front' ? 'on' : ''}" data-a="setAt" data-v="front">Front</button><button class="${S.addAt === 'back' ? 'on' : ''}" data-a="setAt" data-v="back">Back</button></div>`;
+const empty = `<div class="item" style="text-align:center;padding:30px">The Queue is empty. Add the first Chore, then share the Invite link.</div>`;
+const header = `<h1>Home</h1><div class="sub">${S.chores.length} open Chore${S.chores.length === 1 ? '' : 's'} in the Queue · you are ${ME}</div>`;
+
+// ---- Variant A: flat list + bottom sheet ----
+function viewA() {
+  const rows = S.chores.map(c => `<div class="item row" draggable="true" data-row="${c.id}">
+    <span class="handle" title="Drag">⠿</span>
+    <button class="chk" data-a="complete" data-id="${c.id}" title="Complete"></button>
+    <div class="grow" data-a="open" data-id="${c.id}" style="cursor:pointer"><div>${esc(c.title)}</div><div class="meta">${metaLine(c)}</div></div>
+    ${who(c)}<button class="ghost" data-a="menu" data-id="${c.id}">⋯</button>${menu(c)}</div>`).join('');
+  const c = find(S.openId);
+  return `${header}
+  <form class="row item" data-form="add"><input id="draft" class="grow" placeholder="Add a Chore…" value="${esc(S.draft)}">${seg()}<button class="primary">Add</button></form>
+  ${rows || empty}
+  ${c ? `<div class="sheet-bg" data-a="close"></div><div class="sheet">${editForm(c)}</div>` : ''}`;
+}
+
+// ---- Variant B: hero + compact rest + full page ----
+function viewB() {
+  const [first, ...rest] = S.chores;
+  const hero = first ? `<div class="hero"><div class="meta">NEXT UP</div>
+    <div style="font-size:22px;font-weight:700;margin:2px 0" data-a="open" data-id="${first.id}">${esc(first.title)}</div>
+    <div class="meta">${metaLine(first)}</div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" style="background:#fff;color:#2f6f4f" data-a="complete" data-id="${first.id}">✓ Complete</button>
+      ${first.assignee ? `<span class="chip">${esc(first.assignee === ME ? 'You' : first.assignee)}</span>` : `<button class="claim" data-a="claim" data-id="${first.id}">Claim</button>`}
+      <span class="grow"></span><button class="ghost" style="color:#fff" data-a="menu" data-id="${first.id}">⋯</button>${menu(first)}</div></div>` : '';
+  const rows = rest.map((c, i) => `<div class="item row" draggable="true" data-row="${c.id}">
+    <span class="meta" style="width:18px">${i + 2}</span>
+    <div class="grow" data-a="open" data-id="${c.id}"><div>${esc(c.title)}</div><div class="meta">${metaLine(c)}</div></div>
+    ${who(c)}<button class="chk" data-a="complete" data-id="${c.id}" title="Complete"></button>
+    <button class="ghost" data-a="menu" data-id="${c.id}">⋯</button>${menu(c)}</div>`).join('');
+  const c = find(S.openId);
+  return `${header}${hero || empty}
+  ${rest.length ? '<div class="meta" style="margin:0 2px 6px">THEN (drag to reorder)</div>' : ''}${rows}
+  ${S.addOpen ? `<div class="sheet-bg" data-a="toggleAdd"></div><form class="sheet" data-form="add"><div class="row"><input id="draft" class="grow" placeholder="New Chore" value="${esc(S.draft)}"></div>
+    <div class="row" style="margin-top:10px"><button type="button" class="primary grow" data-a="addNow" data-v="front">Add to front</button><button type="button" class="grow" data-a="addNow" data-v="back">Add to back</button></div></form>` : ''}
+  <button class="fab primary" data-a="toggleAdd">+</button>
+  ${c ? `<div class="page"><div><button class="ghost" data-a="close">← Queue</button><h1>Edit Chore</h1>${editForm(c)}</div></div>` : ''}`;
+}
+
+// ---- Variant C: dense table + inline expansion ----
+function viewC() {
+  const rows = S.chores.map((c, i) => `<tr>
+    <td class="n">${i + 1}</td>
+    <td style="width:30px"><button class="chk" data-a="complete" data-id="${c.id}"></button></td>
+    <td data-a="open" data-id="${c.id}" style="cursor:pointer"><div>${esc(c.title)}</div><div class="meta">${metaLine(c)}</div></td>
+    <td style="text-align:right">${who(c)}</td>
+    <td class="arrows"><button class="ghost" data-a="up" data-id="${c.id}">▲</button><button class="ghost" data-a="down" data-id="${c.id}">▼</button></td></tr>
+    ${S.openId === c.id ? `<tr><td class="exp" colspan="5">${editForm(c)}</td></tr>` : ''}`).join('');
+  return `${header}
+  <form class="row" data-form="add" style="margin-bottom:8px"><input id="draft" class="grow" placeholder="New Chore" value="${esc(S.draft)}">
+    <button type="button" data-a="addNow" data-v="front">+ Front</button><button type="button" class="primary" data-a="addNow" data-v="back">+ Back</button></form>
+  ${S.chores.length ? `<table>${rows}</table>` : empty}`;
+}
+
+// ---- render + events ----
+function render() {
+  const v = variant();
+  const ae = document.activeElement, keep = ae && ae.id === 'draft';
+  document.getElementById('app').innerHTML = { A: viewA, B: viewB, C: viewC }[v]() +
+    (S.toast ? `<div class="toast">${esc(S.toast.text)}<button data-a="undo">Undo</button></div>` : '');
+  const keys = Object.keys(VARIANTS), i = keys.indexOf(v);
+  document.getElementById('switcher').innerHTML =
+    `<button data-go="${keys[(i + keys.length - 1) % keys.length]}">←</button><span>${v} (${VARIANTS[v]})</span><button data-go="${keys[(i + 1) % keys.length]}">→</button>`;
+  const d = document.getElementById('draft'); if (d && (keep || S.addOpen)) { d.focus(); d.setSelectionRange(d.value.length, d.value.length); }
+}
+function go(v) { const u = new URL(location); u.searchParams.set('variant', v); history.replaceState(null, '', u); S.openId = S.menuId = null; S.addOpen = false; render(); }
+
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-go]'); if (g) return go(g.dataset.go);
+  const el = e.target.closest('[data-a]');
+  if (!el) { if (S.menuId) { S.menuId = null; render(); } return; }
+  const { a, id, v } = el.dataset;
+  if (a === 'addNow') act.add(v); else if (a === 'setAt') act.setAt(v); else act[a](id ? +id : undefined);
+  render();
+});
+document.addEventListener('submit', e => { e.preventDefault(); act.add(); render(); });
+document.addEventListener('input', e => { if (e.target.id === 'draft') S.draft = e.target.value; });
+document.addEventListener('change', e => { // edit form: apply on change, no re-render so typing isn't interrupted
+  const f = e.target.dataset.f; if (!f) return;
+  const c = find(+e.target.dataset.id); c[f] = e.target.value || (f === 'title' ? c.title : null);
+  if (f === 'repeat') c.repeat = e.target.value; if (f === 'note') c.note = e.target.value;
+  render();
+});
+document.addEventListener('keydown', e => {
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || document.activeElement.isContentEditable) return;
+  const keys = Object.keys(VARIANTS), i = keys.indexOf(variant());
+  if (e.key === 'ArrowRight') go(keys[(i + 1) % keys.length]);
+  if (e.key === 'ArrowLeft') go(keys[(i + keys.length - 1) % keys.length]);
+});
+// drag and drop (A and B)
+let dragId = null;
+document.addEventListener('dragstart', e => { const r = e.target.closest('[data-row]'); if (r) { dragId = +r.dataset.row; e.dataTransfer.effectAllowed = 'move'; } });
+document.addEventListener('dragover', e => {
+  const r = e.target.closest('[data-row]'); if (!r || dragId == null) return; e.preventDefault();
+  const after = e.clientY > r.getBoundingClientRect().top + r.offsetHeight / 2;
+  document.querySelectorAll('.dragover-top,.dragover-bottom').forEach(x => x.classList.remove('dragover-top', 'dragover-bottom'));
+  r.classList.add(after ? 'dragover-bottom' : 'dragover-top');
+});
+document.addEventListener('drop', e => {
+  const r = e.target.closest('[data-row]'); if (!r || dragId == null) return; e.preventDefault();
+  act.move(dragId, +r.dataset.row, e.clientY > r.getBoundingClientRect().top + r.offsetHeight / 2); dragId = null; render();
+});
+document.addEventListener('dragend', () => { dragId = null; render(); });
+render();
+</script>

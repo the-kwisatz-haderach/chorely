@@ -1,5 +1,5 @@
 import { requestCodeBodySchema, type OkResponse } from "@chorely/api-client";
-import { requestCode } from "@/server/auth/auth";
+import { requestCode } from "@/server/auth/codes";
 import { clientIp } from "@/server/auth/request";
 import { getDeps } from "@/server/deps";
 import { handle, json, parseBody } from "@/server/http";

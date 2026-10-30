@@ -1,5 +1,5 @@
 import { setDisplayNameBodySchema, type MeResponse } from "@chorely/api-client";
-import { setDisplayName } from "@/server/auth/auth";
+import { setDisplayName } from "@/server/auth/accounts";
 import { requireAccount } from "@/server/auth/request";
 import { getDeps } from "@/server/deps";
 import { handle, json, parseBody } from "@/server/http";
@@ -19,7 +19,7 @@ export function PATCH(req: Request): Promise<Response> {
     const deps = getDeps();
     const { account, withSession } = await requireAccount(deps, req);
     const { displayName } = await parseBody(req, setDisplayNameBodySchema);
-    const body: MeResponse = { account: await setDisplayName(deps, account.id, displayName) };
+    const body: MeResponse = { account: await setDisplayName(deps.db, account.id, displayName) };
     return withSession(json(body));
   });
 }

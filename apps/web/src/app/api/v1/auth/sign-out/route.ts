@@ -1,5 +1,5 @@
 import type { OkResponse } from "@chorely/api-client";
-import { signOut } from "@/server/auth/auth";
+import { signOut } from "@/server/auth/sessions";
 import { clearedSessionCookie, tokenFrom } from "@/server/auth/request";
 import { getDeps } from "@/server/deps";
 import { handle, json } from "@/server/http";

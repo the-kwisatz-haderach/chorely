@@ -1,5 +1,5 @@
 import { verifyCodeBodySchema, type VerifyCodeResponse } from "@chorely/api-client";
-import { verifyCode } from "@/server/auth/auth";
+import { verifyCode } from "@/server/auth/sign-in";
 import { sessionCookie } from "@/server/auth/request";
 import { getDeps } from "@/server/deps";
 import { handle, json, parseBody } from "@/server/http";

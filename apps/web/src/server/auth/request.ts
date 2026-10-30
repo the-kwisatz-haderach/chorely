@@ -1,5 +1,5 @@
 import type { AccountDto } from "@chorely/api-client";
-import { authenticate, SESSION_TTL_MS } from "./auth";
+import { authenticate, SESSION_TTL_MS } from "./sessions";
 import type { Deps } from "../deps";
 import { AppError } from "../http";
 

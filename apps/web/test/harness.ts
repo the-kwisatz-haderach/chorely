@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { count } from "drizzle-orm";
-import postgres from "postgres";
 import { createApiClient, type ApiClient, type FetchLike } from "@chorely/api-client";
 import { createDb } from "../src/server/db/client";
 import { accounts } from "../src/server/db/schema";
 import { setDeps } from "../src/server/deps";
 import type { Email } from "../src/server/email";
 import * as health from "../src/app/api/v1/health/route";
-import { adminUrl, databaseUrl, TEMPLATE_DB } from "./db-urls";
+import { newId } from "../src/server/ids";
+import { withAdmin } from "./db-admin";
+import { databaseUrl, TEMPLATE_DB } from "./db-urls";
 
 type Handler = (req: Request) => Promise<Response> | Response;
 
@@ -39,12 +40,7 @@ const routeFetch: FetchLike = async (url, init) => {
 /** A fresh, migrated database cloned from the template, wired into the route handlers. */
 export async function createTestApp(): Promise<TestApp> {
   const name = `chorely_test_${randomUUID().replace(/-/g, "")}`;
-  const admin = postgres(adminUrl(), { max: 1, onnotice: () => {} });
-  try {
-    await admin.unsafe(`create database ${name} template ${TEMPLATE_DB}`);
-  } finally {
-    await admin.end();
-  }
+  await withAdmin((admin) => admin.unsafe(`create database ${name} template ${TEMPLATE_DB}`));
 
   const { db, sql } = createDb(databaseUrl(name));
   const sentEmails: Email[] = [];
@@ -66,7 +62,7 @@ export async function createTestApp(): Promise<TestApp> {
     client: createApiClient({ baseUrl: "http://test.local", fetch: routeFetch }),
     sentEmails,
     async insertAccount(email) {
-      await db.insert(accounts).values({ id: randomUUID(), email });
+      await db.insert(accounts).values({ id: newId(), email });
     },
     async countAccounts() {
       const [row] = await db.select({ n: count() }).from(accounts);
@@ -76,12 +72,7 @@ export async function createTestApp(): Promise<TestApp> {
     async close() {
       setDeps(undefined);
       await endConnections();
-      const cleanup = postgres(adminUrl(), { max: 1, onnotice: () => {} });
-      try {
-        await cleanup.unsafe(`drop database if exists ${name} with (force)`);
-      } finally {
-        await cleanup.end();
-      }
+      await withAdmin((admin) => admin.unsafe(`drop database if exists ${name} with (force)`));
     },
   };
 }

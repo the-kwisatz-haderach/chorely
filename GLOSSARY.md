@@ -9,7 +9,7 @@ The set of people who share one Queue. A household is the typical Group, but a t
 _Avoid_: Household (as the canonical term), team, organization
 
 **Member**:
-A person's membership in a Group, held through their Account. All Members are equal; there are no roles.
+A person's membership in a Group, held through their Account. All Members are equal; there are no roles. A Member who leaves stays in the history of completed Chores as a "Former member".
 _Avoid_: User, participant
 
 **Account**:
@@ -49,5 +49,5 @@ One instance of a Recurring Chore. A Recurring Chore has only one open Occurrenc
 _Avoid_: Instance, repeat
 
 **Invite link**:
-A shareable link that lets a person join a Group as a Member.
+A shareable link that lets a person join a Group as a Member. Each Group has one reusable Invite link; any Member can replace it, which stops the old one working.
 _Avoid_: Invitation code

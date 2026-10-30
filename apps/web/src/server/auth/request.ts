@@ -1,6 +1,5 @@
 import type { AccountDto } from "@chorely/api-client";
-import { authenticate } from "./auth";
-import { SESSION_TTL_MS } from "./auth";
+import { authenticate, SESSION_TTL_MS } from "./auth";
 import type { Deps } from "../deps";
 import { AppError } from "../http";
 
@@ -17,10 +16,24 @@ export function tokenFrom(req: Request): string | undefined {
   return undefined;
 }
 
-export async function requireAccount(deps: Deps, req: Request): Promise<AccountDto> {
-  const account = await authenticate(deps, tokenFrom(req));
-  if (!account) throw new AppError("unauthenticated", "Sign in to continue");
-  return account;
+export interface AuthedRequest {
+  account: AccountDto;
+  /** Adds a fresh session cookie to `res` when the session rolled forward, so web sessions roll too. */
+  withSession(res: Response): Response;
+}
+
+export async function requireAccount(deps: Deps, req: Request): Promise<AuthedRequest> {
+  const token = tokenFrom(req);
+  const auth = await authenticate(deps, token);
+  if (!auth || !token) throw new AppError("unauthenticated", "Sign in to continue");
+  const viaCookie = !req.headers.get("authorization");
+  return {
+    account: auth.account,
+    withSession(res) {
+      if (auth.refreshed && viaCookie) res.headers.append("set-cookie", sessionCookie(token));
+      return res;
+    },
+  };
 }
 
 function cookieAttributes(): string {

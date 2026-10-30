@@ -8,18 +8,18 @@ export const dynamic = "force-dynamic";
 
 export function GET(req: Request): Promise<Response> {
   return handle(async () => {
-    const account = await requireAccount(getDeps(), req);
+    const { account, withSession } = await requireAccount(getDeps(), req);
     const body: MeResponse = { account };
-    return json(body);
+    return withSession(json(body));
   });
 }
 
 export function PATCH(req: Request): Promise<Response> {
   return handle(async () => {
     const deps = getDeps();
-    const account = await requireAccount(deps, req);
+    const { account, withSession } = await requireAccount(deps, req);
     const { displayName } = await parseBody(req, setDisplayNameBodySchema);
     const body: MeResponse = { account: await setDisplayName(deps, account.id, displayName) };
-    return json(body);
+    return withSession(json(body));
   });
 }

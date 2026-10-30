@@ -14,11 +14,13 @@ export type AccountDto = z.infer<typeof accountSchema>;
 export const okResponseSchema = z.object({ status: z.literal("ok") });
 export type OkResponse = z.infer<typeof okResponseSchema>;
 
-export const requestCodeBodySchema = z.object({ email: z.string().trim().toLowerCase().email().max(254) });
+const emailSchema = z.string().trim().toLowerCase().email().max(254);
+
+export const requestCodeBodySchema = z.object({ email: emailSchema });
 export type RequestCodeBody = z.input<typeof requestCodeBodySchema>;
 
 export const verifyCodeBodySchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(254),
+  email: emailSchema,
   code: z.string().regex(/^\d{6}$/),
   /** `cookie` sets an httpOnly session cookie (web); `bearer` returns a token in the body (native). */
   transport: z.enum(["cookie", "bearer"]).default("cookie"),

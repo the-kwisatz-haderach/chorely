@@ -129,8 +129,14 @@ function tooManyAttempts() {
   return new AppError("too_many_attempts", "Too many wrong attempts. Request a new code.");
 }
 
-/** Resolves a session token to its Account, extending the session (30 days, rolling). */
-export async function authenticate(deps: Deps, token: string | undefined): Promise<AccountDto | undefined> {
+/**
+ * Resolves a session token to its Account, extending the session (30 days, rolling).
+ * `refreshed` tells cookie clients to be re-issued their cookie with a fresh lifetime.
+ */
+export async function authenticate(
+  deps: Deps,
+  token: string | undefined,
+): Promise<{ account: AccountDto; refreshed: boolean } | undefined> {
   if (!token) return undefined;
   const { db } = deps;
   const now = deps.now();
@@ -142,13 +148,14 @@ export async function authenticate(deps: Deps, token: string | undefined): Promi
     .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, now)));
   if (!row) return undefined;
 
-  if (row.expiresAt.getTime() - now.getTime() < SESSION_TTL_MS - SESSION_REFRESH_AFTER_MS) {
+  const refreshed = row.expiresAt.getTime() - now.getTime() < SESSION_TTL_MS - SESSION_REFRESH_AFTER_MS;
+  if (refreshed) {
     await db
       .update(sessions)
       .set({ expiresAt: new Date(now.getTime() + SESSION_TTL_MS) })
       .where(eq(sessions.tokenHash, tokenHash));
   }
-  return toDto(row.account);
+  return { account: toDto(row.account), refreshed };
 }
 
 export async function signOut(deps: Deps, token: string | undefined): Promise<void> {

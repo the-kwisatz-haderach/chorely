@@ -140,6 +140,21 @@ describe("sessions", () => {
     expect((await app.rawFetch("/me", { headers: { cookie } })).status).toBe(401);
   });
 
+  it("re-issues the cookie with a fresh 30 days when the session rolls forward", async () => {
+    app = await createTestApp();
+    await app.client.requestCode({ email: "ada@example.com" });
+    const res = await app.rawFetch("/auth/verify-code", {
+      method: "POST",
+      body: { email: "ada@example.com", code: app.lastCode("ada@example.com") },
+    });
+    const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+
+    expect((await app.rawFetch("/me", { headers: { cookie } })).headers.get("set-cookie")).toBeNull();
+    app.advance(2 * 24 * 60 * 60_000);
+    const later = await app.rawFetch("/me", { headers: { cookie } });
+    expect(later.headers.get("set-cookie")).toMatch(/Max-Age=2592000/);
+  });
+
   it("sign-out ends a bearer session", async () => {
     app = await createTestApp();
     const { token } = await signIn("ada@example.com");

@@ -14,7 +14,10 @@ let current: Deps | undefined;
 function chooseEmail(): SendEmail {
   const outbox = process.env.EMAIL_OUTBOX_DIR;
   if (outbox) {
-    if (process.env.NODE_ENV === "production") throw new Error("EMAIL_OUTBOX_DIR is for tests and must not be set in production");
+    // The e2e suite runs the production build, so it opts in with CHORELY_E2E.
+    if (process.env.NODE_ENV === "production" && !process.env.CHORELY_E2E) {
+      throw new Error("EMAIL_OUTBOX_DIR is for tests and must not be set in production");
+    }
     return fileEmail(outbox);
   }
   const key = process.env.RESEND_API_KEY;

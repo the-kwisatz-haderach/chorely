@@ -16,6 +16,6 @@ export default defineConfig({
     url: `http://localhost:${port}/api/v1/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
-    env: { DATABASE_URL: databaseUrl, EMAIL_OUTBOX_DIR, AUTH_SECRET: "e2e-secret" },
+    env: { DATABASE_URL: databaseUrl, EMAIL_OUTBOX_DIR, AUTH_SECRET: "e2e-secret", CHORELY_E2E: "1" },
   },
 });

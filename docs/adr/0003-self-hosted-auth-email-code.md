@@ -4,23 +4,23 @@ Accounts sign in with a 6-digit email one-time code, and nothing else in v1. We 
 
 Sessions are database-backed with an opaque id: an httpOnly secure cookie on web and a bearer token in secure storage on native, 30 days rolling. We rejected stateless JWTs because revocation and membership changes (leaving a Group) need a database read anyway, and every request already reads Postgres.
 
-## Better Auth evaluation
+## Why a thin custom layer, not Better Auth
 
-Its email-OTP, session and Drizzle features cover much of this, but it does not fit the requirements above without us writing the same code around it:
+Better Auth was the leading candidate. We checked its docs in October 2026 (a docs-only read; we did not install or test it) and built a small layer on Node crypto and our own Postgres tables instead. The layer is about 300 lines, and contract tests pin its behavior.
 
-- **Send rate limits:** its rate limiter is keyed by IP only (memory, database or secondary storage). The docs describe no per-email limit, and no limit on code sends beyond `allowedAttempts` on verification. We need both per email and per IP in Postgres, and a cap on guesses across re-requested codes.
-- **Enumeration:** the docs say nothing on responses that hide whether an Account exists. We pin that with contract tests either way.
-- **Code storage:** `storeOTP: "hashed"` is available, but we use a keyed HMAC bound to the email, since a bare hash of a 6-digit code is trivially reversible. This would be a custom hash function.
-- **Data model:** it brings its own `user`, `session`, `account` and `verification` tables. Our Account is the only identity, so `account` (provider links) would be unused, and a nullable display name would be an `additionalFields` mapping onto its required `name`. App-generated UUIDv7 ids need a custom `generateId`.
-- **Bearer:** the bearer plugin returns the session token in a `set-auth-token` header and its docs warn to use it cautiously. We return the token in the response body for an explicit `bearer` transport, and the cookie is never readable by scripts.
-- **Defaults differ:** 5 minute OTP, 3 attempts and 7 day sessions, all configurable. Its docs also advise not awaiting the email send, which conflicts with surfacing send failures.
+- Its documented rate limiter is keyed by IP. We need per-email send limits and a cap on guesses across re-requested codes, and its docs do not describe responses that hide whether an Account exists.
+- We want codes stored as a keyed HMAC bound to the email, which would mean a custom hash function in its OTP storage option.
+- It brings its own `user`, `session`, `account` and `verification` tables. Our Account is the only identity, and we want app-generated UUIDv7 ids, so we would be configuring around its model.
 
-The custom layer is about 300 lines and fully covered by contract tests, so Better Auth would remove little code. Sessions and codes live in our own tables with the same semantics, so adopting it later means a data migration, not a redesign.
+The library would save little, and the code and session tables are plain, so adopting it later is a data migration, not a redesign. Revisit when adding OAuth or passkeys, where a library earns its keep.
 
 ## Consequences
 
 - Signing in with an unknown email creates the Account; a display name is asked once after the first sign-in.
 - Codes are 6 digits, valid 10 minutes, single use, stored hashed, dead after 5 wrong attempts. Sends are rate limited per email and per IP in Postgres. Responses never reveal whether an Account exists.
+- `AUTH_SECRET` keys the code hashes and is required in production. Rotating it invalidates outstanding codes only; sessions are unaffected.
+- Verify attempts are also capped per email (10 per 10 minutes) across re-requested codes, so asking for a new code does not reset the guess budget.
+- Per-IP limits use the address our own proxy appended to `X-Forwarded-For` (`TRUSTED_PROXY_HOPS`, default 1); a wrong value makes those limits wrong.
 - Email goes through a small `sendEmail` function (Resend to start) so the provider can be swapped.
 - Invite link: one reusable link per Group, random 128-bit token stored hashed, any Member can rotate it. Opening it signs the person in (creating an Account if needed) and only then creates the Member, with the token kept through sign-in. A person already in a Group is blocked in v1.
 - Members can leave but not remove each other. Leaving unassigns open Chores and keeps the Member row anonymized as "Former member"; deleting an Account does the same for all its Groups and hard-deletes the Account. A Group with no remaining Members is deleted.

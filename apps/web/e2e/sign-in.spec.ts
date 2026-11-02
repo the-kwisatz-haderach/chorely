@@ -28,6 +28,7 @@ test("first sign-in: email, code, display name, create and rename a Group, then 
   await page.getByLabel("Group name").fill("Flat 4");
   await page.getByRole("button", { name: "Create Group" }).click();
   await expect(page.getByRole("heading", { name: "Flat 4" })).toBeVisible();
+  await page.getByRole("link", { name: "Group settings" }).click();
   await expect(page.getByRole("listitem").filter({ hasText: "Ada" })).toBeVisible();
 
   await page.getByLabel("Rename Group").fill("Flat 5");

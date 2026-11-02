@@ -1,0 +1,95 @@
+/*
+ * Design tokens (ADR 0005). Two layers:
+ * 1. Palette: raw colour values. Used only in this file.
+ * 2. Semantic: what components use. The dark theme redefines only this layer.
+ * Contrast pairs are checked in ADR 0005; re-check them there when a value changes.
+ */
+
+/* Palette */
+:root {
+  --palette-cream-100: #f4f1ea;
+  --palette-white: #ffffff;
+  --palette-ink-900: #222222;
+  --palette-ink-950: #141414;
+  --palette-stone-600: #5f5b53;
+  --palette-sand-200: #e6e1d6;
+  --palette-green-700: #2f6f4f;
+  --palette-red-700: #b3261e;
+  --palette-shadow: rgb(34 34 34 / 12%);
+  --palette-shadow-strong: rgb(34 34 34 / 20%);
+
+  --palette-pine-950: #141a17;
+  --palette-pine-900: #1e2622;
+  --palette-pine-700: #334039;
+  --palette-cream-50: #eeeae1;
+  --palette-sage-300: #a8b0aa;
+  --palette-red-300: #ff8f84;
+  --palette-amber-300: #f2c46d;
+  --palette-shadow-dark: rgb(0 0 0 / 40%);
+  --palette-shadow-dark-strong: rgb(0 0 0 / 60%);
+}
+
+/* Semantic: light theme */
+:root {
+  color-scheme: light dark;
+
+  --color-bg: var(--palette-cream-100);
+  --color-surface: var(--palette-white);
+  --color-text: var(--palette-ink-900);
+  --color-text-muted: var(--palette-stone-600);
+  /* A fill only, always under --color-on-primary text; never a text colour. */
+  --color-primary: var(--palette-green-700);
+  --color-on-primary: var(--palette-white);
+  --color-danger: var(--palette-red-700);
+  --color-border: var(--palette-sand-200);
+  --color-focus: var(--palette-ink-950);
+
+  --shadow-1: 0 1px 3px var(--palette-shadow);
+  --shadow-2: 0 6px 18px var(--palette-shadow-strong);
+}
+
+/* Semantic: dark theme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: var(--palette-pine-950);
+    --color-surface: var(--palette-pine-900);
+    --color-text: var(--palette-cream-50);
+    --color-text-muted: var(--palette-sage-300);
+    --color-primary: var(--palette-green-700);
+    --color-on-primary: var(--palette-white);
+    --color-danger: var(--palette-red-300);
+    --color-border: var(--palette-pine-700);
+    --color-focus: var(--palette-amber-300);
+
+    --shadow-1: 0 1px 3px var(--palette-shadow-dark);
+    --shadow-2: 0 6px 18px var(--palette-shadow-dark-strong);
+  }
+}
+
+/* Scales: shared by both themes */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-size-1: 0.8125rem;
+  --font-size-2: 0.9375rem;
+  --font-size-3: 1.125rem;
+  --font-size-4: 1.375rem;
+  --font-size-5: 1.75rem;
+  --line-height: 1.4;
+
+  --target-min: 44px;
+  --column-max: 480px;
+  --duration-fast: 150ms;
+}

@@ -37,7 +37,8 @@ test("Edit a Chore without moving it, flag overdue, and delete with a confirm", 
 
   // Completed Chores have no edit link, and the Done list stays read-only.
   await page.getByRole("button", { name: "Complete Dishes and pans" }).click();
-  await page.getByRole("button", { name: "Show Done list" }).click();
+  await expect(page.getByText("Nothing in the Queue yet")).toBeVisible();
+  await page.getByRole("link", { name: "Done" }).click();
   await expect(page.getByLabel("Done list")).toContainText("Dishes and pans");
   await expect(page.getByLabel("Done list").getByRole("link")).toHaveCount(0);
 });

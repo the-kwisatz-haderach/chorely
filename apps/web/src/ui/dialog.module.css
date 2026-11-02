@@ -1,0 +1,29 @@
+.dialog {
+  width: min(100% - 2 * var(--space-4), 400px);
+  margin: auto;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-2);
+}
+
+.dialog[open] {
+  animation: fade-in var(--duration-fast) ease-out;
+}
+
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--color-text) 40%, transparent);
+}
+
+.title {
+  font-size: var(--font-size-3);
+  margin-bottom: var(--space-3);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}

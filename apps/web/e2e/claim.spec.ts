@@ -11,6 +11,7 @@ test("Claim, unclaim, assign and a lost Claim race", async ({ browser }) => {
   await signIn(ada, `e2e-claim-ada-${stamp}@example.com`, "Ada");
   await ada.getByLabel("Group name").fill("Flat 4");
   await ada.getByRole("button", { name: "Create Group" }).click();
+  await ada.getByRole("link", { name: "Group settings" }).click();
   await ada.getByRole("button", { name: "Create Invite link" }).click();
   const link = await ada.getByLabel("Invite link").inputValue();
 
@@ -18,8 +19,8 @@ test("Claim, unclaim, assign and a lost Claim race", async ({ browser }) => {
   await signIn(bob, `e2e-claim-bob-${stamp}@example.com`, "Bob");
   await expect(bob.getByRole("heading", { name: "Flat 4" })).toBeVisible();
 
-  // Ada reloads so her Member list includes Bob, then adds a Chore.
-  await ada.reload();
+  // Ada goes back to the Queue so her Member list includes Bob, then adds a Chore.
+  await ada.getByRole("link", { name: "Flat 4" }).click();
   await ada.getByRole("button", { name: "Add a Chore" }).click();
   await ada.getByRole("form", { name: "Add a Chore" }).getByLabel("Title").fill("Bins");
   await ada.getByRole("form", { name: "Add a Chore" }).getByRole("button", { name: "Add", exact: true }).click();

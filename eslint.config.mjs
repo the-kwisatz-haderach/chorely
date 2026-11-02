@@ -50,4 +50,16 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ["apps/web/src/**/*.tsx"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXAttribute[name.name='style']",
+          message: "No inline styles: put styles in a CSS Module and use semantic tokens (ADR 0005).",
+        },
+      ],
+    },
+  },
 );

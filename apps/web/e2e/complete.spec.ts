@@ -25,14 +25,16 @@ test("Complete with Undo, and the Done list", async ({ page }) => {
   await page.getByRole("button", { name: "Complete Bins" }).click();
   await expect(page.getByRole("status")).toContainText("Completed Bins");
   await expect(page.getByRole("button", { name: "Undo completing Bins" })).toBeHidden({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Show Done list" }).click();
+  await page.getByRole("link", { name: "Done" }).click();
   await expect(page.getByLabel("Done list")).toContainText("Bins");
   await expect(page.getByLabel("Done list")).toContainText("Done by Ada");
   await expect(page.getByLabel("Done list").getByRole("button")).toHaveCount(0);
 
-  // Newest first: completing Dishes puts it above Bins, and the open Done list reloads.
+  // Newest first: completing Dishes puts it above Bins.
+  await page.getByRole("link", { name: "Flat 4" }).click();
   await page.getByRole("button", { name: "Complete Dishes" }).click();
+  await expect(page.getByText("Nothing in the Queue yet")).toBeVisible();
+  await page.getByRole("link", { name: "Done" }).click();
   await expect(page.getByLabel("Done list").getByRole("listitem").first()).toContainText("Dishes");
   await expect(page.getByLabel("Done list").getByRole("listitem").nth(1)).toContainText("Bins");
-  await expect(page.getByText("Nothing in the Queue yet")).toBeVisible();
 });

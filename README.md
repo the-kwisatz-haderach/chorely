@@ -13,7 +13,7 @@ pnpm dev                 # http://localhost:3000, health at /api/v1/health
 | Command            | What it does                                                                                     |
 | ------------------ | ------------------------------------------------------------------------------------------------ |
 | `pnpm typecheck`   | Typecheck every workspace package                                                                |
-| `pnpm lint`        | ESLint, including the rule keeping `packages/*` free of Node/DOM-only APIs                       |
+| `pnpm lint`        | ESLint (incl. `packages/*` purity and no JSX `style`), then Stylelint (no raw colours, ADR 0005)  |
 | `pnpm test`        | Unit, lint-rule and API contract tests (needs `pnpm db:up`; each test gets its own database)     |
 | `pnpm test:e2e`    | Playwright smoke test (first run: `pnpm --filter @chorely/web exec playwright install chromium`) |
 | `pnpm db:generate` | Generate a new SQL migration after editing `apps/web/src/server/db/schema.ts`                    |
@@ -21,7 +21,7 @@ pnpm dev                 # http://localhost:3000, health at /api/v1/health
 
 ## Layout
 
-- `apps/web`: Next.js app and the `/api/v1` route handlers. Server-only code lives in `src/server`.
+- `apps/web`: Next.js app and the `/api/v1` route handlers. Server-only code lives in `src/server`; design tokens, base styles and UI primitives in `src/ui` (ADR 0005).
 - `packages/api-client`: zod schemas, error codes and the typed fetch client (ADR 0004).
 - `packages/domain`: pure TypeScript domain logic, no I/O.
-- `tooling`: tests for repo tooling (the purity lint rule).
+- `tooling`: tests for repo tooling (the purity and styling lint rules).

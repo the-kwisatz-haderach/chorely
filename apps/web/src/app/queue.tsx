@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { ApiError, type ChoreDto, type MemberDto } from "@chorely/api-client";
 import { api } from "./api";
-import { DoneList } from "./done-list";
 import { errorMessage } from "./error-message";
 import { useMovableQueue } from "./use-movable-queue";
+import styles from "./queue.module.css";
 
 /** Today as a local `YYYY-MM-DD`, comparable with a Chore's date-only Due date. */
 function todayLocal(): string {
@@ -23,7 +23,7 @@ function ChoreMeta({ chore, members }: { chore: ChoreDto; members: MemberDto[] }
         <span>
           {" "}
           Due {chore.dueDate}
-          {overdue && <strong style={{ color: "#b00020" }}> Overdue</strong>}
+          {overdue && <strong className={styles.overdue}> Overdue</strong>}
         </span>
       )}
       <span> {assignee ? `Assigned to ${assignee.displayName ?? "Unnamed"}` : "Unassigned"}</span>
@@ -84,7 +84,7 @@ function ChoreActions({ groupId, chore, members, myMemberId, disabled, onClaim, 
           </option>
         ))}
       </select>
-      <details style={{ display: "inline-block" }}>
+      <details className={styles.move}>
         <summary aria-label={`Move ${chore.title}`}>Move</summary>
         {(["front", "back"] as const).map((to) => (
           <button
@@ -120,9 +120,6 @@ export function Queue({
   const { chores, showQueue, moveToEnd, dragProps } = useMovableQueue(groupId, setError);
   const [undo, setUndo] = useState<{ id: string; title: string }>();
   const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const [showDone, setShowDone] = useState(false);
-  // Bumped on every complete/undo so an open Done list reloads.
-  const [doneVersion, setDoneVersion] = useState(0);
 
   useEffect(() => () => clearTimeout(undoTimer.current), []);
 
@@ -189,13 +186,11 @@ export function Queue({
       clearTimeout(undoTimer.current);
       undoTimer.current = setTimeout(() => setUndo(undefined), UNDO_MS);
     });
-    setDoneVersion((v) => v + 1);
   }
 
   async function undoComplete(id: string) {
     dismissUndo();
     await runAndRefetch(() => api.undoCompleteChore(groupId, id));
-    setDoneVersion((v) => v + 1);
   }
 
   const actions = (chore: ChoreDto) => (
@@ -215,7 +210,7 @@ export function Queue({
   const [next, ...rest] = chores ?? [];
 
   return (
-    <section aria-label="Queue">
+    <section aria-label="Queue" className={styles.queue}>
       <h3>Queue</h3>
       {chores && !next && (
         <p>
@@ -233,7 +228,7 @@ export function Queue({
             disabled={busy}
             onClick={() => void complete(next)}
             aria-label={`Complete ${next.title}`}
-            style={{ display: "block", width: "100%", padding: "16px", fontSize: "1.25rem", marginTop: 12 }}
+            className={styles.complete}
           >
             Complete
           </button>
@@ -292,12 +287,12 @@ export function Queue({
           </button>
         </form>
       ) : (
-        <button style={{ position: "fixed", right: 24, bottom: 24, padding: "12px 20px" }} onClick={() => setAdding(true)}>
+        <button className={styles.fab} onClick={() => setAdding(true)}>
           + Add a Chore
         </button>
       )}
       {undo && (
-        <div role="status" style={{ position: "fixed", left: 24, bottom: 24, padding: "12px 20px", background: "#222", color: "#fff" }}>
+        <div role="status" className={styles.toast}>
           Completed {undo.title}{" "}
           <button onClick={() => void undoComplete(undo.id)} aria-label={`Undo completing ${undo.title}`}>
             Undo
@@ -305,9 +300,6 @@ export function Queue({
         </div>
       )}
       {error && <p role="alert">{error}</p>}
-
-      <button onClick={() => setShowDone((v) => !v)}>{showDone ? "Hide Done list" : "Show Done list"}</button>
-      {showDone && <DoneList groupId={groupId} members={members} version={doneVersion} />}
     </section>
   );
 }

@@ -153,8 +153,8 @@ async function requireOpenChore(tx: Tx, ctx: MemberContext, choreId: string): Pr
     .from(chores)
     .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId)));
   if (!chore) throw choreNotFound();
-  if (chore.completedAt) throw alreadyDone();
-  const { completedAt: _, ...dto } = chore;
+  const { completedAt, ...dto } = chore;
+  if (completedAt) throw alreadyDone();
   return dto;
 }
 

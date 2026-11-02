@@ -51,13 +51,12 @@ export const memberSchema = z.object({
 });
 export type MemberDto = z.infer<typeof memberSchema>;
 
-const groupNameSchema = z.string().trim().min(1).max(60);
+export const groupIdSchema = z.string().uuid();
 
-export const createGroupBodySchema = z.object({ name: groupNameSchema });
-export type CreateGroupBody = z.input<typeof createGroupBodySchema>;
-
-export const renameGroupBodySchema = z.object({ name: groupNameSchema });
-export type RenameGroupBody = z.input<typeof renameGroupBodySchema>;
+/** Body for both creating and renaming a Group. */
+export const groupNameBodySchema = z.object({ name: z.string().trim().min(1).max(60) });
+export type CreateGroupBody = z.input<typeof groupNameBodySchema>;
+export type RenameGroupBody = CreateGroupBody;
 
 export const listGroupsResponseSchema = z.object({ groups: z.array(groupSchema) });
 export type ListGroupsResponse = z.infer<typeof listGroupsResponseSchema>;

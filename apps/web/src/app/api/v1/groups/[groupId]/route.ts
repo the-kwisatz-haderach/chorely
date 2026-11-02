@@ -1,4 +1,4 @@
-import { renameGroupBodySchema, type GroupDetailResponse, type GroupResponse } from "@chorely/api-client";
+import { groupNameBodySchema, type GroupDetailResponse, type GroupResponse } from "@chorely/api-client";
 import { getDeps } from "@/server/deps";
 import { requireMember } from "@/server/groups/context";
 import { getGroup, listMembers, renameGroup } from "@/server/groups/data";
@@ -19,7 +19,7 @@ export function GET(req: Request, { params }: Ctx): Promise<Response> {
 export function PATCH(req: Request, { params }: Ctx): Promise<Response> {
   return handle(async () => {
     const ctx = await requireMember(getDeps(), req, (await params).groupId);
-    const { name } = await parseBody(req, renameGroupBodySchema);
+    const { name } = await parseBody(req, groupNameBodySchema);
     const body: GroupResponse = { group: await renameGroup(ctx, name) };
     return ctx.withSession(json(body));
   });

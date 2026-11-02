@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import "../ui/tokens.css";
 import "../ui/base.css";
-import { OfflineNotice } from "./offline-notice";
 import { ServiceWorker } from "./service-worker";
 import { DARK_BG, LIGHT_BG } from "./theme-colors";
 
@@ -27,7 +26,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body>
         <ServiceWorker />
-        <OfflineNotice />
         {children}
       </body>
     </html>

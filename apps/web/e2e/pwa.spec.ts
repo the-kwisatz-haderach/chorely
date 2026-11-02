@@ -51,13 +51,22 @@ test("Chorely is installable: a manifest with icons and a service worker that ca
 });
 
 test("Offline: a clear message instead of silent failure, gone again once back online", async ({ page, context }) => {
+  const notice = page.getByRole("status").filter({ hasText: "You're offline" });
+
+  // The screens before the Queue show it under the wordmark.
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await context.setOffline(true);
+  await expect(notice).toBeVisible();
+  await context.setOffline(false);
+  await expect(notice).toBeHidden();
+
   await signIn(page, `e2e-offline-${Date.now()}@example.com`, "Ada");
   await page.getByLabel("Group name").fill("Flat 5");
   await page.getByRole("button", { name: "Create Group" }).click();
   await expect(page.getByRole("button", { name: "Add a Chore" })).toBeVisible();
 
-  const notice = page.getByRole("status").filter({ hasText: "You're offline" });
+  // Screens inside a Group show it in the top bar.
   await expect(notice).toBeHidden();
   await context.setOffline(true);
   await expect(notice).toBeVisible();

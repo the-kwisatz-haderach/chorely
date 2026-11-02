@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { ListChecks, Settings } from "lucide-react";
+import { OfflineNotice } from "./offline-notice";
 import styles from "./top-bar.module.css";
 
-/** The app's top bar: the Group name (linking home to the Queue) and icon links to its Done list and Group screen. */
+/**
+ * The app's top bar: the Group name (linking home to the Queue) and icon links to its Done list and Group screen,
+ * with the offline notice under them.
+ */
 export function TopBar({ title, groupId }: { title: string; groupId?: string }) {
   return (
     <header className={styles.bar}>
@@ -17,6 +21,7 @@ export function TopBar({ title, groupId }: { title: string; groupId?: string }) 
           </Link>
         </nav>
       )}
+      <OfflineNotice className={styles.offline} />
     </header>
   );
 }

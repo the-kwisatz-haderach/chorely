@@ -2,9 +2,10 @@
 
 import { useSyncExternalStore } from "react";
 import { WifiOff } from "lucide-react";
+import { cx } from "../ui";
 import styles from "./offline-notice.module.css";
 
-function subscribe(onChange: () => void) {
+function subscribeToOnlineStatus(onChange: () => void) {
   window.addEventListener("online", onChange);
   window.addEventListener("offline", onChange);
   return () => {
@@ -13,15 +14,18 @@ function subscribe(onChange: () => void) {
   };
 }
 
-/** A strip above every screen while the browser is offline. Offline use is not supported in v1, so it says so. */
-export function OfflineNotice() {
+/**
+ * Says so while the browser is offline, because offline use is not supported in v1. The top bar and the screens
+ * before the Queue each place one, so it stays in view and stays clear of the safe area.
+ */
+export function OfflineNotice({ className }: { className?: string }) {
   const online = useSyncExternalStore(
-    subscribe,
+    subscribeToOnlineStatus,
     () => navigator.onLine,
     () => true,
   );
   return (
-    <div role="status" className={styles.slot}>
+    <div role="status" className={cx(styles.slot, className)}>
       {!online && (
         <p className={styles.notice}>
           <WifiOff aria-hidden size={18} className={styles.icon} />

@@ -20,13 +20,13 @@ export function RecurrenceFields({
   recurrence,
   dueDate,
   members,
-  hint,
+  scheduleHint,
 }: {
   recurrence: RecurrenceDto | null;
   dueDate: string | null;
   members: MemberDto[];
   /** A muted line at the end of the section. */
-  hint?: string;
+  scheduleHint?: string;
 }) {
   const [unit, setUnit] = useState<Unit | "">(recurrence?.unit ?? "");
   const start = dueDate ?? todayLocal();
@@ -98,7 +98,7 @@ export function RecurrenceFields({
           </label>
         </>
       )}
-      {hint && <p className={styles.hint}>{hint}</p>}
+      {scheduleHint && <p className={styles.hint}>{scheduleHint}</p>}
     </fieldset>
   );
 }

@@ -16,7 +16,8 @@
   font-size: var(--font-size-1);
 }
 
-/* Stacked: the legend above as a field label, and the bordered row of segments below at full width. */
+/* Stacked: the legend above as a field label, and the bordered row of segments below at full width. The border is
+   muted text, like a form control's, because it is the boundary that identifies the control (ADR 0005). */
 .stacked {
   min-width: 0;
   padding: 0;
@@ -31,7 +32,7 @@
 
 .track {
   display: flex;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-text-muted);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
@@ -40,6 +41,7 @@
   flex: 1;
   justify-content: center;
   text-align: center;
+  border-left-color: var(--color-text-muted);
 }
 
 .track .segment:first-child {

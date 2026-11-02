@@ -51,6 +51,7 @@ export function ChoreFields({
   dueDateHint?: string;
 }) {
   const dueDateId = useId();
+  const dueDateHintId = `${dueDateId}-hint`;
   const assignee = members.some((m) => m.id === chore?.assigneeId) ? (chore?.assigneeId ?? "") : "";
   return (
     <>
@@ -70,10 +71,10 @@ export function ChoreFields({
           type="date"
           className={styles.control}
           defaultValue={chore?.dueDate ?? ""}
-          aria-describedby={dueDateHint ? `${dueDateId}-hint` : undefined}
+          aria-describedby={dueDateHint ? dueDateHintId : undefined}
         />
         {dueDateHint && (
-          <p id={`${dueDateId}-hint`} className={styles.hint}>
+          <p id={dueDateHintId} className={styles.hint}>
             {dueDateHint}
           </p>
         )}

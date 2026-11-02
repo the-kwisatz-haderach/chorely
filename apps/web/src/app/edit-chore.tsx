@@ -50,7 +50,7 @@ export function EditChore({ groupId, choreId }: { groupId: string; choreId: stri
   if (chore === null) {
     return (
       <EmptyState
-        icon={<SearchX size={32} />}
+        icon={<SearchX size={40} />}
         message="This Chore is no longer in the Queue. It may have been completed or deleted."
         action={
           <a href="/" className={buttonClassName({ variant: "primary" })}>
@@ -105,7 +105,7 @@ export function EditChore({ groupId, choreId }: { groupId: string; choreId: stri
           recurrence={chore.recurrence}
           dueDate={chore.dueDate}
           members={members}
-          hint={chore.recurrence ? "Schedule changes apply from the next Occurrence." : undefined}
+          scheduleHint={chore.recurrence ? "Schedule changes apply from the next Occurrence." : undefined}
         />
         {error && <ErrorBanner message={error} className={styles.banner} />}
         <div className={styles.actions}>

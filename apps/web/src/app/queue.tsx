@@ -139,8 +139,8 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const { chores, showQueue, sync, moveToEnd, dragProps } = useMovableQueue(groupId, setError);
-  useRevisionPoll(groupId, sync);
+  const { chores, showQueue, refetchIfChanged, moveToEnd, dragProps } = useMovableQueue(groupId, setError);
+  useRevisionPoll(groupId, refetchIfChanged);
   const [undo, setUndo] = useState<{ id: string; title: string }>();
   const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 

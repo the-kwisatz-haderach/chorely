@@ -27,7 +27,8 @@ export function useRevisionPoll(groupId: string, onRevision: (revision: number) 
       timer = undefined;
       polling = true;
       try {
-        await latest.current((await api.getRevision(groupId)).revision);
+        const { revision } = await api.getRevision(groupId);
+        if (!stopped) await latest.current(revision);
       } catch {
         // Dropped; the next poll retries.
       } finally {

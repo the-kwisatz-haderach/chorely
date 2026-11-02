@@ -17,7 +17,7 @@ const LOST_MOVE = "The Queue changed while you were moving that Chore, so it has
 /**
  * The Group's open Chores, reorderable by drag and by Move to front / back (ADR 0002). Moves show instantly with a
  * provisional key and are reconciled with the key the server generates; a failed move refetches the Queue. `sync`
- * refetches the Queue when a polled Group revision differs from the one shown.
+ * `refetchIfChanged` refetches the Queue when a polled Group revision differs from the one shown.
  */
 export function useMovableQueue(groupId: string, setError: (message: string | undefined) => void) {
   const [chores, setChores] = useState<ChoreDto[]>();
@@ -29,8 +29,8 @@ export function useMovableQueue(groupId: string, setError: (message: string | un
   const moveSeq = useRef(0);
   // Moves are sent one at a time, in order: each one's anchors assume the moves before it have landed.
   const moveChain = useRef<Promise<void>>(Promise.resolve());
-  // The revision of the Queue on screen, and the oldest one still worth showing: a Queue read before one of our
-  // moves landed would put that Chore back where it was.
+  // The revision of the Queue on screen, and the oldest one a landed move of ours allows: a Queue read before that
+  // move would put the Chore back where it was.
   const shownRevision = useRef<number>(undefined);
   const minRevision = useRef(0);
   const dragged = useRef<string>(undefined);
@@ -40,16 +40,16 @@ export function useMovableQueue(groupId: string, setError: (message: string | un
 
   /**
    * Shows a fetched Queue, keeping the provisional key of any Chore whose move is still in flight. A Queue older than
-   * one of our landed moves is dropped.
+   * the one on screen or than one of our landed moves is dropped, so a slow response cannot roll the screen back.
    */
   function showQueue({ chores: fetched, revision }: QueueResponse) {
-    if (revision < minRevision.current) return;
+    if (revision < Math.max(minRevision.current, shownRevision.current ?? 0)) return;
     shownRevision.current = revision;
     setChores(inQueueOrder(fetched.map((c) => ({ ...c, position: moving.current.get(c.id)?.position ?? c.position }))));
   }
 
   /** Refetches the Queue if `revision` is not the one on screen. */
-  async function sync(revision: number) {
+  async function refetchIfChanged(revision: number) {
     if (revision !== shownRevision.current) showQueue(await api.getQueue(groupId));
   }
 
@@ -159,5 +159,5 @@ export function useMovableQueue(groupId: string, setError: (message: string | un
     };
   }
 
-  return { chores, showQueue, sync, moveToEnd, dragProps };
+  return { chores, showQueue, refetchIfChanged, moveToEnd, dragProps };
 }

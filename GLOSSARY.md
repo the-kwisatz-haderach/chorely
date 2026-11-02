@@ -36,6 +36,10 @@ _Avoid_: Priority, rank
 An optional date on a Chore that seeds its initial Position when it is added. It never reorders the Queue afterwards.
 _Avoid_: Deadline
 
+**Overdue**:
+A marker shown beside a Chore whose Due date is before today. It is only a label: it never changes the Chore's Position. Completed Chores are not marked.
+_Avoid_: Late, expired
+
 **Assignee**:
 The optional Member responsible for a Chore. A Chore with no Assignee is unassigned and any Member can claim it.
 _Avoid_: Owner
@@ -48,6 +52,10 @@ _Avoid_: Pick up, grab
 **Complete**:
 Any Member marking a Chore done, recording who completed it and when. The Chore leaves the Queue but keeps its Position, so **Undo** (a short client-side window right after) puts it back in its place. Once that window has passed there is no reopen.
 _Avoid_: Finish, close, check off
+
+**Delete**:
+Permanently removing an open Chore from the Queue, after a confirm. A completed Chore cannot be deleted; it stays in the Done list.
+_Avoid_: Archive, remove
 
 **Done list**:
 The read-only list of completed Chores, newest first, each with its completer. A completer who has left shows as a "Former member".

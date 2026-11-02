@@ -7,9 +7,11 @@ import {
   type AddChoreResponse,
   type ChoreDto,
   type ChoreResponse,
+  type DeleteChoreResponse,
   type CompleteChoreResponse,
   type DoneListResponse,
   type QueueResponse,
+  type UpdateChoreInput,
 } from "@chorely/api-client";
 import { chores, groups, members } from "../db/schema";
 import { AppError } from "../http";
@@ -47,13 +49,7 @@ export async function addChore(ctx: MemberContext, input: AddChoreInput): Promis
     // Bumping first takes the Group row lock, which serialises adds so each reads the Queue it inserts into.
     const group = await bumpRevision(tx, ctx);
 
-    if (input.assigneeId) {
-      const [assignee] = await tx
-        .select({ id: members.id })
-        .from(members)
-        .where(and(eq(members.id, input.assigneeId), eq(members.groupId, ctx.groupId)));
-      if (!assignee) throw new AppError("validation_failed", "Assignee must be a Member of the Group");
-    }
+    if (input.assigneeId) await requireAssignee(tx, ctx, input.assigneeId);
 
     const queue = await tx
       .select({ position: chores.position, dueDate: chores.dueDate })
@@ -87,6 +83,15 @@ async function bumpRevision(tx: Tx, ctx: MemberContext): Promise<{ revision: num
   return group;
 }
 
+/** Rejects an Assignee who is not a Member of this Group. */
+async function requireAssignee(tx: Tx, ctx: MemberContext, memberId: string): Promise<void> {
+  const [member] = await tx
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.id, memberId), eq(members.groupId, ctx.groupId)));
+  if (!member) throw new AppError("validation_failed", "Assignee must be a Member of the Group");
+}
+
 function choreNotFound(): AppError {
   return new AppError("not_found", "Chore not found");
 }
@@ -105,21 +110,12 @@ async function changeAssignee(
   choreId: string,
   change: (tx: Tx, chore: ChoreDto) => Promise<string | null>,
 ): Promise<ChoreResponse> {
-  if (!choreIdSchema.safeParse(choreId).success) throw choreNotFound();
   return ctx.db.transaction(async (tx) => {
     const group = await bumpRevision(tx, ctx);
-
-    const [chore] = await tx
-      .select({ ...choreColumns, completedAt: chores.completedAt })
-      .from(chores)
-      .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId)));
-    if (!chore) throw choreNotFound();
-    if (chore.completedAt) throw alreadyDone();
-
+    const chore = await requireOpenChore(tx, ctx, choreId);
     const assigneeId = await change(tx, chore);
     await tx.update(chores).set({ assigneeId }).where(eq(chores.id, choreId));
-    const { id, title, note, dueDate, position } = chore;
-    return { chore: { id, title, note, dueDate, position, assigneeId }, revision: group.revision };
+    return { chore: { ...chore, assigneeId }, revision: group.revision };
   });
 }
 
@@ -144,14 +140,53 @@ export function unclaimChore(ctx: MemberContext, choreId: string): Promise<Chore
 /** Assigns or reassigns the Chore to any Member of the Group, or unassigns it with null. */
 export function assignChore(ctx: MemberContext, choreId: string, assigneeId: string | null): Promise<ChoreResponse> {
   return changeAssignee(ctx, choreId, async (tx) => {
-    if (assigneeId) {
-      const [member] = await tx
-        .select({ id: members.id })
-        .from(members)
-        .where(and(eq(members.id, assigneeId), eq(members.groupId, ctx.groupId)));
-      if (!member) throw new AppError("validation_failed", "Assignee must be a Member of the Group");
-    }
+    if (assigneeId) await requireAssignee(tx, ctx, assigneeId);
     return assigneeId;
+  });
+}
+
+/** Loads a Chore of this Group that is still open, or throws `not_found` / `conflict` (already done). */
+async function requireOpenChore(tx: Tx, ctx: MemberContext, choreId: string): Promise<ChoreDto> {
+  if (!choreIdSchema.safeParse(choreId).success) throw choreNotFound();
+  const [chore] = await tx
+    .select({ ...choreColumns, completedAt: chores.completedAt })
+    .from(chores)
+    .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId)));
+  if (!chore) throw choreNotFound();
+  const { completedAt, ...dto } = chore;
+  if (completedAt) throw alreadyDone();
+  return dto;
+}
+
+/**
+ * Edits an open Chore for any Member. Only the fields present change, and `position` is never touched, so a
+ * new Due date does not move the Chore. Bumping the revision first takes the Group row lock.
+ */
+export async function updateChore(ctx: MemberContext, choreId: string, input: UpdateChoreInput): Promise<ChoreResponse> {
+  return ctx.db.transaction(async (tx) => {
+    const group = await bumpRevision(tx, ctx);
+    const chore = await requireOpenChore(tx, ctx, choreId);
+
+    if (input.assigneeId) await requireAssignee(tx, ctx, input.assigneeId);
+
+    const changes = {
+      ...(input.title !== undefined && { title: input.title }),
+      ...(input.note !== undefined && { note: input.note }),
+      ...(input.dueDate !== undefined && { dueDate: input.dueDate }),
+      ...(input.assigneeId !== undefined && { assigneeId: input.assigneeId }),
+    };
+    if (Object.keys(changes).length > 0) await tx.update(chores).set(changes).where(eq(chores.id, choreId));
+    return { chore: { ...chore, ...changes }, revision: group.revision };
+  });
+}
+
+/** Permanently deletes an open Chore. A completed Chore stays in the Done list, so it is a `conflict`. */
+export async function deleteChore(ctx: MemberContext, choreId: string): Promise<DeleteChoreResponse> {
+  return ctx.db.transaction(async (tx) => {
+    const group = await bumpRevision(tx, ctx);
+    await requireOpenChore(tx, ctx, choreId);
+    await tx.delete(chores).where(eq(chores.id, choreId));
+    return { revision: group.revision };
   });
 }
 

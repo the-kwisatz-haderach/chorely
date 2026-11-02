@@ -1,13 +1,17 @@
 import type { z } from "zod";
 import { ApiError, apiErrorBodySchema } from "./errors";
 import {
+  addChoreResponseSchema,
   groupDetailResponseSchema,
   groupResponseSchema,
   healthResponseSchema,
   listGroupsResponseSchema,
   meResponseSchema,
   okResponseSchema,
+  queueResponseSchema,
   verifyCodeResponseSchema,
+  type AddChoreBody,
+  type AddChoreResponse,
   type CreateGroupBody,
   type GroupDetailResponse,
   type GroupResponse,
@@ -15,6 +19,7 @@ import {
   type ListGroupsResponse,
   type MeResponse,
   type OkResponse,
+  type QueueResponse,
   type RenameGroupBody,
   type RequestCodeBody,
   type SetDisplayNameBody,
@@ -46,6 +51,8 @@ export interface ApiClient {
   createGroup(body: CreateGroupBody): Promise<GroupResponse>;
   getGroup(groupId: string): Promise<GroupDetailResponse>;
   renameGroup(groupId: string, body: RenameGroupBody): Promise<GroupResponse>;
+  getQueue(groupId: string): Promise<QueueResponse>;
+  addChore(groupId: string, body: AddChoreBody): Promise<AddChoreResponse>;
 }
 
 function parseJson(text: string): unknown {
@@ -101,5 +108,8 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     getGroup: (groupId) => request(`/groups/${encodeURIComponent(groupId)}`, groupDetailResponseSchema),
     renameGroup: (groupId, body) =>
       request(`/groups/${encodeURIComponent(groupId)}`, groupResponseSchema, { method: "PATCH", body }),
+    getQueue: (groupId) => request(`/groups/${encodeURIComponent(groupId)}/chores`, queueResponseSchema),
+    addChore: (groupId, body) =>
+      request(`/groups/${encodeURIComponent(groupId)}/chores`, addChoreResponseSchema, { method: "POST", body }),
   };
 }

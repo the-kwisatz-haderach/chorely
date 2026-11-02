@@ -66,3 +66,41 @@ export type GroupResponse = z.infer<typeof groupResponseSchema>;
 
 export const groupDetailResponseSchema = z.object({ group: groupSchema, members: z.array(memberSchema) });
 export type GroupDetailResponse = z.infer<typeof groupDetailResponseSchema>;
+
+const dateOnlySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(s);
+  }, "Not a calendar date");
+
+export const choreSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  note: z.string(),
+  /** Date-only, `YYYY-MM-DD`. */
+  dueDate: z.string().nullable(),
+  /** The assigned Member's id; null when unassigned. */
+  assigneeId: z.string().nullable(),
+  position: z.string(),
+});
+export type ChoreDto = z.infer<typeof choreSchema>;
+
+export const addChoreBodySchema = z.object({
+  title: z.string().trim().min(1).max(100),
+  note: z.string().trim().max(1000).default(""),
+  dueDate: dateOnlySchema.nullish().transform((d) => d ?? null),
+  assigneeId: z.string().uuid().nullish().transform((a) => a ?? null),
+  /** Omit to let the Due date seed the Position; otherwise a manual placement wins. */
+  placement: z.enum(["front", "back"]).optional(),
+});
+export type AddChoreBody = z.input<typeof addChoreBodySchema>;
+export type AddChoreInput = z.output<typeof addChoreBodySchema>;
+
+/** The Queue: open Chores in order, with the Group revision they were read at. */
+export const queueResponseSchema = z.object({ chores: z.array(choreSchema), revision: z.number().int() });
+export type QueueResponse = z.infer<typeof queueResponseSchema>;
+
+export const addChoreResponseSchema = z.object({ chore: choreSchema, revision: z.number().int() });
+export type AddChoreResponse = z.infer<typeof addChoreResponseSchema>;

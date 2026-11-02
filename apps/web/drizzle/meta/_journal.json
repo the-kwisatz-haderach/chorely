@@ -15,6 +15,13 @@
       "when": 1793372651601,
       "tag": "0001_naive_korvac",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793602772390,
+      "tag": "0002_foamy_iron_man",
+      "breakpoints": true
     }
   ]
 }

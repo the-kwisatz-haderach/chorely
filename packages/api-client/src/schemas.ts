@@ -39,3 +39,31 @@ export type MeResponse = z.infer<typeof meResponseSchema>;
 
 export const setDisplayNameBodySchema = z.object({ displayName: z.string().trim().min(1).max(50) });
 export type SetDisplayNameBody = z.input<typeof setDisplayNameBodySchema>;
+
+export const groupSchema = z.object({ id: z.string(), name: z.string() });
+export type GroupDto = z.infer<typeof groupSchema>;
+
+export const memberSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  /** Null until that person has chosen one. */
+  displayName: z.string().nullable(),
+});
+export type MemberDto = z.infer<typeof memberSchema>;
+
+const groupNameSchema = z.string().trim().min(1).max(60);
+
+export const createGroupBodySchema = z.object({ name: groupNameSchema });
+export type CreateGroupBody = z.input<typeof createGroupBodySchema>;
+
+export const renameGroupBodySchema = z.object({ name: groupNameSchema });
+export type RenameGroupBody = z.input<typeof renameGroupBodySchema>;
+
+export const listGroupsResponseSchema = z.object({ groups: z.array(groupSchema) });
+export type ListGroupsResponse = z.infer<typeof listGroupsResponseSchema>;
+
+export const groupResponseSchema = z.object({ group: groupSchema });
+export type GroupResponse = z.infer<typeof groupResponseSchema>;
+
+export const groupDetailResponseSchema = z.object({ group: groupSchema, members: z.array(memberSchema) });
+export type GroupDetailResponse = z.infer<typeof groupDetailResponseSchema>;

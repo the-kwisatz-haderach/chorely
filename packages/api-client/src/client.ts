@@ -1,13 +1,21 @@
 import type { z } from "zod";
 import { ApiError, apiErrorBodySchema } from "./errors";
 import {
+  groupDetailResponseSchema,
+  groupResponseSchema,
   healthResponseSchema,
+  listGroupsResponseSchema,
   meResponseSchema,
   okResponseSchema,
   verifyCodeResponseSchema,
+  type CreateGroupBody,
+  type GroupDetailResponse,
+  type GroupResponse,
   type HealthResponse,
+  type ListGroupsResponse,
   type MeResponse,
   type OkResponse,
+  type RenameGroupBody,
   type RequestCodeBody,
   type SetDisplayNameBody,
   type VerifyCodeBody,
@@ -34,6 +42,10 @@ export interface ApiClient {
   getMe(): Promise<MeResponse>;
   setDisplayName(body: SetDisplayNameBody): Promise<MeResponse>;
   signOut(): Promise<OkResponse>;
+  listGroups(): Promise<ListGroupsResponse>;
+  createGroup(body: CreateGroupBody): Promise<GroupResponse>;
+  getGroup(groupId: string): Promise<GroupDetailResponse>;
+  renameGroup(groupId: string, body: RenameGroupBody): Promise<GroupResponse>;
 }
 
 function parseJson(text: string): unknown {
@@ -84,5 +96,10 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     getMe: () => request("/me", meResponseSchema),
     setDisplayName: (body) => request("/me", meResponseSchema, { method: "PATCH", body }),
     signOut: () => request("/auth/sign-out", okResponseSchema, { method: "POST", body: {} }),
+    listGroups: () => request("/groups", listGroupsResponseSchema),
+    createGroup: (body) => request("/groups", groupResponseSchema, { method: "POST", body }),
+    getGroup: (groupId) => request(`/groups/${encodeURIComponent(groupId)}`, groupDetailResponseSchema),
+    renameGroup: (groupId, body) =>
+      request(`/groups/${encodeURIComponent(groupId)}`, groupResponseSchema, { method: "PATCH", body }),
   };
 }

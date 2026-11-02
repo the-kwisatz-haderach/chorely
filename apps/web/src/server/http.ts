@@ -7,6 +7,7 @@ const STATUS: Record<ErrorCode, number> = {
   not_found: 404,
   validation_failed: 400,
   unauthenticated: 401,
+  conflict: 409,
   invalid_code: 400,
   too_many_attempts: 429,
   rate_limited: 429,

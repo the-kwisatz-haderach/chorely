@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { ApiError, createApiClient, type AccountDto } from "@chorely/api-client";
-
-// Same typed client as native; the browser sends the httpOnly session cookie itself.
-const api = createApiClient({ baseUrl: "", fetch: (url, init) => fetch(url, init) });
+import { ApiError, type AccountDto } from "@chorely/api-client";
+import { api } from "./api";
+import { GroupScreen } from "./group-screen";
 
 type Step = { name: "loading" } | { name: "email" } | { name: "code"; email: string } | { name: "signed-in"; account: AccountDto };
 
@@ -105,6 +104,7 @@ export function AuthFlow() {
       {step.name === "signed-in" && step.account.displayName && (
         <>
           <p>Signed in as {step.account.displayName}</p>
+          <GroupScreen />
           <button
             disabled={busy}
             onClick={() =>

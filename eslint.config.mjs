@@ -36,4 +36,18 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ["apps/web/src/app/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            { regex: "^drizzle-orm(/.*)?$", message: "Route handlers go through src/server modules, never Drizzle directly." },
+            { regex: "(^|/)server/db/schema$", message: "Route handlers go through src/server modules, never the Drizzle schema directly." },
+          ],
+        },
+      ],
+    },
+  },
 );

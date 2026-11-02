@@ -14,7 +14,7 @@ async function emailedCode(email: string): Promise<string> {
   return code;
 }
 
-test("first sign-in: email, code, display name, then sign out", async ({ page }) => {
+test("first sign-in: email, code, display name, create and rename a Group, then sign out", async ({ page }) => {
   const email = `e2e-${Date.now()}@example.com`;
   await page.goto("/");
 
@@ -36,6 +36,18 @@ test("first sign-in: email, code, display name, then sign out", async ({ page })
   // The session survives a reload, and the display name is not asked for again.
   await page.reload();
   await expect(page.getByText("Signed in as Ada")).toBeVisible();
+
+  // No Group yet: create one, land in it, and rename it.
+  await page.getByLabel("Group name").fill("Flat 4");
+  await page.getByRole("button", { name: "Create Group" }).click();
+  await expect(page.getByRole("heading", { name: "Flat 4" })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Ada" })).toBeVisible();
+
+  await page.getByLabel("Rename Group").fill("Flat 5");
+  await page.getByRole("button", { name: "Rename" }).click();
+  await expect(page.getByRole("heading", { name: "Flat 5" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Flat 5" })).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByLabel("Email")).toBeVisible();

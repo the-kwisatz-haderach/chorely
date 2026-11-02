@@ -24,8 +24,8 @@ export function JoinInvite({ token }: { token: string }) {
   return (
     <EntryCard>
       <h2 className={styles.heading}>Can&apos;t join this Group</h2>
-      <ErrorBanner message={state.message} />
-      <a href="/" className={buttonClassName({ variant: "primary", className: styles.primary })}>
+      <ErrorBanner message={state.message} className={styles.banner} />
+      <a href="/" className={buttonClassName({ variant: "primary", className: styles.fullWidth })}>
         Go to Chorely
       </a>
     </EntryCard>

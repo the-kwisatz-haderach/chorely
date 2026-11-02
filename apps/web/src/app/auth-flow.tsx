@@ -71,12 +71,12 @@ export function AuthFlow({
   // Screens inside a Group show the Group's top bar; the edit and add screens still show the plain one.
   const ownTopBar = signedIn && !inviteToken && !editChore && !newChore;
   // Signing in, choosing a Display name and the Invite landing are cards under the wordmark.
-  const entry = !signedIn || inviteToken;
-  const banner = error && <ErrorBanner message={error} />;
+  const isEntryScreen = !signedIn || Boolean(inviteToken);
+  const banner = error && <ErrorBanner message={error} className={isEntryScreen ? entryStyles.banner : undefined} />;
 
   return (
     <main>
-      {entry ? <Wordmark /> : !ownTopBar && <TopBar title="Chorely" />}
+      {isEntryScreen ? <Wordmark /> : !ownTopBar && <TopBar title="Chorely" />}
 
       {step.name === "email" && (
         <EntryCard>
@@ -97,7 +97,7 @@ export function AuthFlow({
               Email <input name="email" type="email" autoComplete="email" enterKeyHint="send" required />
             </label>
             {banner}
-            <Button type="submit" variant="primary" className={entryStyles.primary} disabled={busy}>
+            <Button type="submit" variant="primary" className={entryStyles.fullWidth} disabled={busy}>
               Send code
             </Button>
           </form>
@@ -137,7 +137,7 @@ export function AuthFlow({
               />
             </label>
             {banner}
-            <Button type="submit" variant="primary" className={entryStyles.primary} disabled={busy}>
+            <Button type="submit" variant="primary" className={entryStyles.fullWidth} disabled={busy}>
               Sign in
             </Button>
             <Button
@@ -174,7 +174,7 @@ export function AuthFlow({
               <input name="displayName" autoComplete="nickname" maxLength={50} autoFocus required />
             </label>
             {banner}
-            <Button type="submit" variant="primary" className={entryStyles.primary} disabled={busy}>
+            <Button type="submit" variant="primary" className={entryStyles.fullWidth} disabled={busy}>
               Continue
             </Button>
           </form>

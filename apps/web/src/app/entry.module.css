@@ -1,4 +1,4 @@
-/* The screens before the Queue: sign-in, code, display name, first run and the Invite landing. */
+/* The screens before the Queue: sign-in, code, Display name, first run and the Invite landing. */
 
 .wordmark {
   margin: calc(var(--space-8) + env(safe-area-inset-top)) 0 var(--space-6);
@@ -20,7 +20,7 @@
 }
 
 /* A banner in the card is spaced by the card's and form's gaps, not its own margin. */
-.card [role="alert"] {
+.banner {
   margin: 0;
 }
 
@@ -69,7 +69,7 @@
   text-align: center;
 }
 
-.primary {
+.fullWidth {
   width: 100%;
 }
 

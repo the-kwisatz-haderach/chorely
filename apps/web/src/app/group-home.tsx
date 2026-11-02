@@ -60,6 +60,8 @@ export function GroupHome({ accountId }: { accountId: string }) {
 
       {state.name === "none" && (
         <EntryCard>
+          {/* One banner for both ways in, above them, so it is never under the wrong form. */}
+          {error && <ErrorBanner message={error} className={styles.banner} />}
           <form
             className={styles.form}
             onSubmit={(e) => {
@@ -72,7 +74,7 @@ export function GroupHome({ accountId }: { accountId: string }) {
             <label className={styles.field}>
               Group name <input name="name" maxLength={60} required />
             </label>
-            <Button type="submit" variant="primary" className={styles.primary} disabled={busy}>
+            <Button type="submit" variant="primary" className={styles.fullWidth} disabled={busy}>
               Create Group
             </Button>
           </form>
@@ -89,8 +91,7 @@ export function GroupHome({ accountId }: { accountId: string }) {
             <label className={styles.field}>
               Paste an Invite link <input name="invite" inputMode="url" autoComplete="off" required />
             </label>
-            {error && <ErrorBanner message={error} />}
-            <Button type="submit" variant="secondary" className={styles.primary} disabled={busy}>
+            <Button type="submit" variant="secondary" className={styles.fullWidth} disabled={busy}>
               Join Group
             </Button>
           </form>

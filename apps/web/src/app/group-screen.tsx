@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, type GroupDetailResponse } from "@chorely/api-client";
 import { api } from "./api";
+import { Queue } from "./queue";
 
 type State = { name: "loading" } | { name: "none" } | { name: "ready"; detail: GroupDetailResponse };
 
@@ -64,6 +65,7 @@ export function GroupScreen() {
       {state.name === "ready" && (
         <>
           <h2>{state.detail.group.name}</h2>
+          <Queue groupId={state.detail.group.id} members={state.detail.members} />
           <form
             onSubmit={(e) => {
               e.preventDefault();

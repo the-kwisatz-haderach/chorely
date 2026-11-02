@@ -1,12 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { ApiError, type ChoreDto, type MemberDto } from "@chorely/api-client";
+import { type ChoreDto, type MemberDto } from "@chorely/api-client";
 import { api } from "./api";
-
-function message(err: unknown): string {
-  return err instanceof ApiError ? err.message : "Something went wrong. Try again.";
-}
+import { errorMessage } from "./error-message";
 
 function ChoreMeta({ chore, members }: { chore: ChoreDto; members: MemberDto[] }) {
   const assignee = members.find((m) => m.id === chore.assigneeId);
@@ -29,7 +26,7 @@ export function Queue({ groupId, members, inviteLink }: { groupId: string; membe
     api
       .getQueue(groupId)
       .then(({ chores }) => setChores(chores))
-      .catch((err: unknown) => setError(message(err)));
+      .catch((err: unknown) => setError(errorMessage(err)));
   }, [groupId]);
 
   async function submit(form: HTMLFormElement, placement: "front" | undefined) {
@@ -48,7 +45,7 @@ export function Queue({ groupId, members, inviteLink }: { groupId: string; membe
       setChores((await api.getQueue(groupId)).chores);
       setAdding(false);
     } catch (err) {
-      setError(message(err));
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }

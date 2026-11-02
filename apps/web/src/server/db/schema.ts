@@ -69,6 +69,23 @@ export const members = pgTable(
 );
 
 /**
+ * A Group's one Invite link. The hash is how a join finds the Group; `tokenCiphertext` (AES-GCM, keyed from
+ * `AUTH_SECRET`) lets any Member read the link back. Replacing the link overwrites both. Null means no readable copy.
+ */
+export const inviteLinks = pgTable(
+  "invite_links",
+  {
+    groupId: uuid("group_id")
+      .primaryKey()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    tokenCiphertext: text("token_ciphertext"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("invite_links_token_hash_unique").on(t.tokenHash)],
+);
+
+/**
  * `position` is a fractional-index key (ADR 0002). The migration gives it `COLLATE "C"` by hand because
  * Drizzle cannot express it; the Queue is ordered by `(position, id)`.
  */

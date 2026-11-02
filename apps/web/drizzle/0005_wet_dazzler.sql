@@ -1,0 +1,1 @@
+ALTER TABLE "invite_links" ADD COLUMN "token_ciphertext" text;

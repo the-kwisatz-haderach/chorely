@@ -11,6 +11,7 @@ export const ERROR_CODES = [
   "invalid_code",
   "too_many_attempts",
   "rate_limited",
+  "invalid_invite",
   // Raised by the client itself, never sent by the server.
   "network_error",
   "invalid_response",

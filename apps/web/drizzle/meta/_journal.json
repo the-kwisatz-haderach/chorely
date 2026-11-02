@@ -57,6 +57,13 @@
       "when": 1793625841140,
       "tag": "0007_boring_ted_forrester",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793627611919,
+      "tag": "0008_mute_lord_tyger",
+      "breakpoints": true
     }
   ]
 }

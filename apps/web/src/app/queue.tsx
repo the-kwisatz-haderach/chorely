@@ -19,16 +19,10 @@ import { type Placement } from "@chorely/domain";
 import { api } from "./api";
 import { MemberOptions, PlacementToggle, addChoreBody } from "./chore-fields";
 import { errorMessage } from "./error-message";
+import { todayLocal } from "./today";
 import { Button, cx, EmptyState, ErrorBanner, Menu, MenuItem, Sheet, Toast, VisuallyHidden } from "../ui";
 import { useMovableQueue } from "./use-movable-queue";
 import styles from "./queue.module.css";
-
-/** Today as a local `YYYY-MM-DD`, comparable with a Chore's date-only Due date. */
-function todayLocal(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
 
 /** How long the Undo toast stays up after a Chore is completed. */
 const UNDO_MS = 8000;
@@ -208,7 +202,7 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
 
   async function complete(chore: ChoreDto) {
     await runAndRefetch(async () => {
-      await api.completeChore(groupId, chore.id);
+      await api.completeChore(groupId, chore.id, { today: todayLocal() });
       setUndo({ id: chore.id, title: chore.title });
       clearTimeout(undoTimer.current);
       undoTimer.current = setTimeout(() => setUndo(undefined), UNDO_MS);

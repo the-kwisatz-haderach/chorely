@@ -62,11 +62,11 @@ The read-only list of completed Chores, newest first, each with its completer. A
 _Avoid_: History, archive
 
 **Recurring Chore**:
-A Chore that comes back into the Queue on a schedule after it is completed.
+A Chore that comes back into the Queue on a schedule after it is completed: every N days, every N weeks on chosen weekdays, or every N months on a day of the month. The schedule is either a fixed calendar (the default), where the next Due date is the first schedule date after both today and the completed Occurrence's Due date, or counted from the day of completion. It may name a fixed Assignee for every new Occurrence. **Stop repeating** deletes the schedule and leaves the open Occurrence as a one-off.
 _Avoid_: Repeating task, routine
 
 **Occurrence**:
-One instance of a Recurring Chore. A Recurring Chore has only one open Occurrence at a time; completing it creates the next.
+One instance of a Recurring Chore. A Recurring Chore has only one open Occurrence at a time; completing it creates the next, and Undo deletes that next one again. Deleting an open Occurrence either skips it ("Delete this one", which creates the next) or ends the series ("Delete and stop repeating"). Schedule edits apply from the next Occurrence.
 _Avoid_: Instance, repeat
 
 **Invite link**:

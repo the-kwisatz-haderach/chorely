@@ -7,6 +7,7 @@ import { type Placement } from "@chorely/domain";
 import { api } from "./api";
 import { ChoreFields, PlacementToggle, addChoreBody } from "./chore-fields";
 import { errorMessage } from "./error-message";
+import { RecurrenceFields, recurrenceValue } from "./recurrence-fields";
 
 /** Full-page add screen, reached by "More options" from the Queue's add sheet with its title and placement carried over. */
 export function NewChore({ groupId, title, placement }: { groupId: string; title: string; placement: Placement }) {
@@ -24,7 +25,12 @@ export function NewChore({ groupId, title, placement }: { groupId: string; title
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const body = addChoreBody(e.currentTarget);
+    const repeat = recurrenceValue(e.currentTarget);
+    if ("error" in repeat) {
+      setError(repeat.error);
+      return;
+    }
+    const body = { ...addChoreBody(e.currentTarget), recurrence: repeat.recurrence };
     setBusy(true);
     setError(undefined);
     try {
@@ -41,6 +47,7 @@ export function NewChore({ groupId, title, placement }: { groupId: string; title
       <h2>Add a Chore</h2>
       <form aria-label="Add a Chore" onSubmit={(e) => void onSubmit(e)}>
         <ChoreFields chore={{ title }} members={members} />
+        <RecurrenceFields recurrence={null} dueDate={null} members={members} />
         <PlacementToggle defaultValue={placement} />
         <p>On Back, a Chore with a Due date is placed by its date instead.</p>
         <button disabled={busy}>Add</button>

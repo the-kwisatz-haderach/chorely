@@ -37,6 +37,7 @@ describe("Edit and delete a Chore (contract, real Postgres)", () => {
       dueDate: "2030-05-06",
       assigneeId: bobId,
       position: chore.position,
+      recurrence: null,
     });
     expect(res.revision).toBe(2);
     expect((await ada.getQueue(group.id)).chores).toEqual([res.chore]);
@@ -85,7 +86,7 @@ describe("Edit and delete a Chore (contract, real Postgres)", () => {
     const { ada, bob, group } = await setup();
     const { chore: bins } = await ada.addChore(group.id, { title: "Bins" });
     const { chore: dishes } = await ada.addChore(group.id, { title: "Dishes" });
-    expect(await bob.deleteChore(group.id, bins.id)).toEqual({ revision: 3 });
+    expect(await bob.deleteChore(group.id, bins.id)).toEqual({ revision: 3, next: null });
     const queue = await ada.getQueue(group.id);
     expect(queue.chores.map((c) => c.id)).toEqual([dishes.id]);
     expect(queue.revision).toBe(3);

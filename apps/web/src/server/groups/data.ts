@@ -2,7 +2,7 @@ import { asc, eq, and, count, isNotNull, ne, sql } from "drizzle-orm";
 import { inviteTokenSchema, type GroupDto, type LeaveGroupResponse, type MemberDto } from "@chorely/api-client";
 import { hashToken } from "../auth/hash";
 import type { Database } from "../db/client";
-import { accounts, chores, groups, inviteLinks, members } from "../db/schema";
+import { accounts, chores, groups, inviteLinks, members, recurrences } from "../db/schema";
 import { AppError } from "../http";
 import { newId } from "../ids";
 import type { MemberContext } from "./context";
@@ -107,7 +107,8 @@ export async function renameGroup(ctx: MemberContext, name: string): Promise<Gro
 }
 
 /**
- * Makes a Member a Former member: their Chores become unassigned and the row loses its Account (ADR 0003). The
+ * Makes a Member a Former member: their Chores become unassigned (and no Recurring Chore keeps them as its fixed
+ * Assignee) and the row loses its Account (ADR 0003). The
  * last Member leaving deletes the Group instead, which needs `deleteGroup`. Bumping the revision first takes the
  * Group row lock, so Members leaving at once see each other go, and clients refetch the Queue.
  */
@@ -135,6 +136,7 @@ async function depart(tx: Tx, member: { id: string; groupId: string }, deleteGro
   }
   // Completed Chores too, so an Undo never reopens a Chore assigned to a Former member.
   await tx.update(chores).set({ assigneeId: null }).where(eq(chores.assigneeId, member.id));
+  await tx.update(recurrences).set({ assigneeId: null }).where(eq(recurrences.assigneeId, member.id));
   await tx.update(members).set({ accountId: null }).where(eq(members.id, member.id));
   return { groupDeleted: false };
 }

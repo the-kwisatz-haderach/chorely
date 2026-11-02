@@ -12,6 +12,8 @@ export interface MemberContext {
   db: Database;
   /** Key material for sealing secrets we must show again (see `auth/seal.ts`). */
   authSecret: string;
+  /** The server clock (fake in tests). */
+  now: () => Date;
   account: AccountDto;
   memberId: string;
   groupId: string;
@@ -25,5 +27,5 @@ export async function requireMember(deps: Deps, req: Request, groupId: string): 
   if (!groupIdSchema.safeParse(groupId).success) throw groupNotFound();
   const memberId = await findMemberId(deps.db, groupId, account.id);
   if (!memberId) throw groupNotFound();
-  return { db: deps.db, authSecret: deps.authSecret, account, memberId, groupId, withSession };
+  return { db: deps.db, authSecret: deps.authSecret, now: deps.now, account, memberId, groupId, withSession };
 }

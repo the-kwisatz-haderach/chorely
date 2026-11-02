@@ -1,0 +1,142 @@
+/* The Group screen: one card per section. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-1);
+}
+
+.heading {
+  font-size: var(--font-size-1);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.count {
+  font-weight: 400;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-input);
+}
+
+.input[readonly] {
+  background: var(--color-bg);
+  text-overflow: ellipsis;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.replace {
+  align-self: flex-start;
+  margin-left: calc(-1 * var(--space-3));
+}
+
+/* Members */
+
+.members {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  overflow-wrap: anywhere;
+}
+
+.member + .member {
+  border-top: 1px solid var(--color-border);
+}
+
+.avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 700;
+}
+
+.you {
+  padding: 0 var(--space-2);
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-full);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-1);
+}
+
+/* Account */
+
+/* Each label above its value, so a long email gets the full width. */
+.account {
+  display: flex;
+  flex-direction: column;
+}
+
+.account dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-1);
+}
+
+.account dd + dt {
+  margin-top: var(--space-3);
+}
+
+.account dd {
+  overflow-wrap: anywhere;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}

@@ -6,19 +6,11 @@ afterEach(async () => {
   await app.close();
 });
 
-async function signedIn(email: string, displayName: string) {
-  await app.client.requestCode({ email });
-  const { token } = await app.client.verifyCode({ email, code: app.lastCode(email), transport: "bearer" });
-  const client = app.clientWithToken(token);
-  await client.setDisplayName({ displayName });
-  return client;
-}
-
 /** A Group with Ada and Bob as Members and the Queue A, B, C, D. */
 async function setup() {
   app = await createTestApp();
-  const ada = await signedIn("ada@example.com", "Ada");
-  const bob = await signedIn("bob@example.com", "Bob");
+  const { client: ada } = await app.signedIn("ada@example.com", "Ada");
+  const { client: bob } = await app.signedIn("bob@example.com", "Bob");
   const { group } = await ada.createGroup({ name: "Flat 4" });
   await bob.joinGroup({ token: (await ada.createInviteLink(group.id)).token });
   const ids: Record<string, string> = {};
@@ -120,7 +112,7 @@ describe("Reorder the Queue (contract, real Postgres)", () => {
     await expect(ada.moveChore(group.id, ids.A, { afterId: ids.D })).rejects.toMatchObject({ code: "conflict", status: 409 });
     await expect(ada.moveChore(group.id, unknown, { afterId: ids.D })).rejects.toMatchObject({ code: "not_found" });
     await expect(ada.moveChore(group.id, "nope", { afterId: ids.D })).rejects.toMatchObject({ code: "not_found" });
-    const carl = await signedIn("carl@example.com", "Carl");
+    const { client: carl } = await app.signedIn("carl@example.com", "Carl");
     const elsewhere = await carl.createGroup({ name: "Elsewhere" });
     await expect(carl.moveChore(elsewhere.group.id, ids.B, { afterId: ids.D })).rejects.toMatchObject({ code: "not_found" });
     await expect(app.client.moveChore(group.id, ids.B, { afterId: ids.D })).rejects.toMatchObject({ code: "unauthenticated" });
@@ -129,7 +121,7 @@ describe("Reorder the Queue (contract, real Postgres)", () => {
 
   it("does not use another Group's Chore as an anchor", async () => {
     const { ada, group, ids, order } = await setup();
-    const carl = await signedIn("carl@example.com", "Carl");
+    const { client: carl } = await app.signedIn("carl@example.com", "Carl");
     const elsewhere = await carl.createGroup({ name: "Elsewhere" });
     const { chore: theirs } = await carl.addChore(elsewhere.group.id, { title: "Theirs" });
     await expect(ada.moveChore(group.id, ids.A, { afterId: theirs.id, beforeId: theirs.id })).rejects.toMatchObject({

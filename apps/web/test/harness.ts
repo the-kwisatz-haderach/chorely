@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { count, eq } from "drizzle-orm";
-import { createApiClient, type ApiClient, type FetchLike } from "@chorely/api-client";
+import { createApiClient, type AccountDto, type ApiClient, type FetchLike } from "@chorely/api-client";
 import { createDb } from "../src/server/db/client";
 import { accounts, inviteLinks, loginCodes, members, rateLimits, sessions } from "../src/server/db/schema";
 import { setDeps } from "../src/server/deps";
@@ -57,6 +57,8 @@ export interface TestApp {
   advance(ms: number): void;
   /** A client of the same app that sends `token` as a bearer token. */
   clientWithToken(token: string | undefined): ApiClient;
+  /** Signs a new person in with a bearer session and sets their Display name. */
+  signedIn(email: string, displayName: string): Promise<{ client: ApiClient; account: AccountDto }>;
   /** Calls a route directly, for checks the typed client hides (cookies, headers). */
   rawFetch(path: string, init?: { method?: string; headers?: Record<string, string>; body?: unknown }): Promise<Response>;
   /** Raw stored values, to check secrets are not persisted in the clear. */
@@ -113,7 +115,7 @@ export async function createTestApp(): Promise<TestApp> {
     await sql.end();
   };
 
-  return {
+  const app: TestApp = {
     client: createApiClient({ baseUrl: "http://test.local", fetch: routeFetch }),
     sentEmails,
     lastCode(email) {
@@ -127,6 +129,13 @@ export async function createTestApp(): Promise<TestApp> {
     },
     clientWithToken(token) {
       return createApiClient({ baseUrl: "http://test.local", fetch: routeFetch, getToken: () => token });
+    },
+    async signedIn(email, displayName) {
+      await app.client.requestCode({ email });
+      const { token } = await app.client.verifyCode({ email, code: app.lastCode(email), transport: "bearer" });
+      const client = app.clientWithToken(token);
+      const { account } = await client.setDisplayName({ displayName });
+      return { client, account };
     },
     async rawFetch(path, init) {
       const { body, ...rest } = init ?? {};
@@ -173,4 +182,5 @@ export async function createTestApp(): Promise<TestApp> {
       await withAdmin((admin) => admin.unsafe(`drop database if exists ${name} with (force)`));
     },
   };
+  return app;
 }

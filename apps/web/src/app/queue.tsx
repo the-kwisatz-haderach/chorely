@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { ApiError, type ChoreDto, type MemberDto } from "@chorely/api-client";
-import { positionBetween } from "@chorely/domain";
 import { api } from "./api";
 import { DoneList } from "./done-list";
 import { errorMessage } from "./error-message";
+import { useMovableQueue } from "./use-movable-queue";
 
 /** Today as a local `YYYY-MM-DD`, comparable with a Chore's date-only Due date. */
 function todayLocal(): string {
@@ -33,14 +33,6 @@ function ChoreMeta({ chore, members }: { chore: ChoreDto; members: MemberDto[] }
 
 /** How long the Undo toast stays up after a Chore is completed. */
 const UNDO_MS = 8000;
-
-/** The Queue order the server uses: `(position, id)`, byte-wise (keys and ids are ASCII). */
-function inQueueOrder(chores: ChoreDto[]): ChoreDto[] {
-  const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-  return [...chores].sort((a, b) => cmp(a.position, b.position) || cmp(a.id, b.id));
-}
-
-const LOST_MOVE = "The Queue changed while you were moving that Chore, so it has been refreshed.";
 
 const LOST_CLAIM = "Someone else got there first, so nothing changed. The Queue has been refreshed.";
 
@@ -122,30 +114,17 @@ export function Queue({
   accountId: string;
   inviteLink?: string;
 }) {
-  const [chores, setChores] = useState<ChoreDto[]>();
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const { chores, showQueue, moveToEnd, dragProps } = useMovableQueue(groupId, setError);
   const [undo, setUndo] = useState<{ id: string; title: string }>();
   const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [showDone, setShowDone] = useState(false);
   // Bumped on every complete/undo so an open Done list reloads.
   const [doneVersion, setDoneVersion] = useState(0);
 
-  // Moves still in flight, by Chore id: the latest move's number and its provisional key. A fetched Queue keeps
-  // these keys so it cannot undo an optimistic move, and only the latest move's response is reconciled (ADR 0002).
-  const moving = useRef(new Map<string, { seq: number; position: string }>());
-  const moveSeq = useRef(0);
-  // Moves are sent one at a time, in order: each one's anchors assume the moves before it have landed.
-  const moveChain = useRef<Promise<void>>(Promise.resolve());
-  const dragged = useRef<string>(undefined);
-
   useEffect(() => () => clearTimeout(undoTimer.current), []);
-
-  /** Shows a fetched Queue, keeping the provisional key of any Chore whose move is still in flight. */
-  function showQueue(fetched: ChoreDto[]) {
-    setChores(inQueueOrder(fetched.map((c) => ({ ...c, position: moving.current.get(c.id)?.position ?? c.position }))));
-  }
 
   useEffect(() => {
     api
@@ -176,7 +155,6 @@ export function Queue({
     }
   }
 
-  const queue = chores ?? [];
   const myMemberId = members.find((m) => m.accountId === accountId)?.id;
 
   /** Runs a Claim or assignment, then refetches. A 409 shows `lostRace` when given, else the server's message. */
@@ -197,78 +175,6 @@ export function Queue({
     } finally {
       setBusy(false);
     }
-  }
-
-  /**
-   * Moves a Chore to `index` among the others: instantly with a provisional key, then reconciled with the key the
-   * server generates. On a conflict (or any failure) the Queue is refetched.
-   */
-  async function move(chore: ChoreDto, index: number) {
-    const others = queue.filter((c) => c.id !== chore.id);
-    const after = others[index - 1];
-    const before = others[index];
-    if (queue[index]?.id === chore.id || (!after && !before)) return;
-
-    const seq = ++moveSeq.current;
-    const position = positionBetween(after?.position ?? null, before?.position ?? null) ?? chore.position;
-    moving.current.set(chore.id, { seq, position });
-    setChores([...others.slice(0, index), { ...chore, position }, ...others.slice(index)]);
-    setError(undefined);
-
-    const isLatest = () => moving.current.get(chore.id)?.seq === seq;
-    const sent = moveChain.current.then(() =>
-      api.moveChore(groupId, chore.id, {
-        ...(after ? { afterId: after.id } : {}),
-        ...(before ? { beforeId: before.id } : {}),
-      }),
-    );
-    moveChain.current = sent.then(
-      () => undefined,
-      () => undefined,
-    );
-    try {
-      const res = await sent;
-      if (!isLatest()) return;
-      moving.current.delete(chore.id);
-      setChores((current) => current && inQueueOrder(current.map((c) => (c.id === chore.id ? res.chore : c))));
-    } catch (err) {
-      if (!isLatest()) return;
-      moving.current.delete(chore.id);
-      setError(err instanceof ApiError && err.code === "conflict" ? LOST_MOVE : errorMessage(err));
-      try {
-        showQueue((await api.getQueue(groupId)).chores);
-      } catch (refetchErr) {
-        setError(errorMessage(refetchErr));
-      }
-    }
-  }
-
-  /** Drag and drop: dropping on a Chore lands below it when dragging down, above it when dragging up. */
-  function dragProps(chore: ChoreDto) {
-    return {
-      draggable: true,
-      style: { cursor: "grab" },
-      onDragStart: (e: DragEvent) => {
-        dragged.current = chore.id;
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", chore.id);
-      },
-      onDragOver: (e: DragEvent) => {
-        if (dragged.current) e.preventDefault();
-      },
-      onDrop: (e: DragEvent) => {
-        e.preventDefault();
-        const from = queue.findIndex((c) => c.id === dragged.current);
-        const to = queue.findIndex((c) => c.id === chore.id);
-        const moved = queue[from];
-        dragged.current = undefined;
-        if (!moved || from === to) return;
-        void move(moved, to);
-      },
-      onDragEnd: () => {
-        dragged.current = undefined;
-      },
-    };
   }
 
   function dismissUndo() {
@@ -302,11 +208,11 @@ export function Queue({
       onClaim={() => void runAndRefetch(() => api.claimChore(groupId, chore.id), LOST_CLAIM)}
       onUnclaim={() => void runAndRefetch(() => api.unclaimChore(groupId, chore.id))}
       onAssign={(assigneeId) => void runAndRefetch(() => api.assignChore(groupId, chore.id, { assigneeId }))}
-      onMove={(to) => void move(chore, to === "front" ? 0 : queue.length - 1)}
+      onMove={(to) => moveToEnd(chore, to)}
     />
   );
 
-  const [next, ...rest] = queue;
+  const [next, ...rest] = chores ?? [];
 
   return (
     <section aria-label="Queue">

@@ -121,14 +121,21 @@ export function GroupSettings({
         {url ? (
           <>
             <p className={styles.muted}>Share this link. Anyone who opens it can join the Group.</p>
-            <input ref={linkInput} readOnly aria-label="Invite link" className={styles.input} value={url} onFocus={(e) => e.currentTarget.select()} />
+            <input
+              ref={linkInput}
+              readOnly
+              aria-label="Invite link"
+              className={styles.input}
+              value={url}
+              onFocus={(e) => e.currentTarget.select()}
+            />
             <div className={styles.actions}>
-              <Button variant="primary" onClick={() => void run(() => copy(url))}>
+              <Button variant="primary" disabled={busy} onClick={() => void run(() => copy(url))}>
                 <Copy aria-hidden size={18} />
                 Copy
               </Button>
               {canShare && (
-                <Button onClick={() => void run(() => share(url))}>
+                <Button disabled={busy} onClick={() => void run(() => share(url))}>
                   <Share2 aria-hidden size={18} />
                   Share
                 </Button>
@@ -139,7 +146,13 @@ export function GroupSettings({
                 </span>
               )}
             </div>
-            <Button variant="ghost" size="small" className={styles.replace} disabled={busy} onClick={() => setConfirmingReplace(true)}>
+            <Button
+              variant="ghost"
+              size="small"
+              className={styles.replace}
+              disabled={busy}
+              onClick={() => setConfirmingReplace(true)}
+            >
               <RefreshCw aria-hidden size={14} />
               Replace Invite link
             </Button>
@@ -147,7 +160,7 @@ export function GroupSettings({
         ) : (
           <>
             <p className={styles.muted}>Make an Invite link to add people. Making a new one stops any link shared before.</p>
-            <Button variant="primary" disabled={busy}onClick={() => void newInviteLink()}>
+            <Button variant="primary" disabled={busy} onClick={() => void newInviteLink()}>
               Create Invite link
             </Button>
           </>
@@ -169,7 +182,6 @@ export function GroupSettings({
           <Button onClick={() => setConfirmingReplace(false)}>Cancel</Button>
           <Button
             variant="primary"
-            disabled={busy}
             onClick={() => {
               setConfirmingReplace(false);
               void newInviteLink();

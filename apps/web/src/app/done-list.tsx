@@ -8,7 +8,7 @@ import { api } from "./api";
 import styles from "./done-list.module.css";
 import { errorMessage } from "./error-message";
 
-const completedAt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+const completedAtFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 /** Read-only list of completed Chores, newest first, loaded a page at a time. */
 export function DoneList({ groupId, members }: { groupId: string; members: MemberDto[] }) {
@@ -58,7 +58,7 @@ export function DoneList({ groupId, members }: { groupId: string; members: Membe
               <div className={styles.body}>
                 <strong className={styles.title}>{c.title}</strong>
                 <p className={styles.meta}>
-                  Done by {completer(c)} · <time dateTime={c.completedAt}>{completedAt.format(new Date(c.completedAt))}</time>
+                  Done by {completer(c)} · <time dateTime={c.completedAt}>{completedAtFormat.format(new Date(c.completedAt))}</time>
                 </p>
               </div>
             </li>

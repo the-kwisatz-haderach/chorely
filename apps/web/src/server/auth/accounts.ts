@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { AccountDto } from "@chorely/api-client";
 import type { Database } from "../db/client";
 import { accounts } from "../db/schema";
+import { leaveAllGroups } from "../groups/data";
 import { newId } from "../ids";
 import { AppError } from "../http";
 
@@ -21,4 +22,12 @@ export async function setDisplayName(db: Database, accountId: string, displayNam
   const [row] = await db.update(accounts).set({ displayName }).where(eq(accounts.id, accountId)).returning();
   if (!row) throw new AppError("not_found", "Account not found");
   return toDto(row);
+}
+
+/** Hard-deletes the Account and its sessions, after making it a Former member of all its Groups (ADR 0003). */
+export async function deleteAccount(db: Database, accountId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await leaveAllGroups(tx, accountId);
+    await tx.delete(accounts).where(eq(accounts.id, accountId));
+  });
 }

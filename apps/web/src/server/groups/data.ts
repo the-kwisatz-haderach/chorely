@@ -1,8 +1,8 @@
-import { asc, eq, and, sql } from "drizzle-orm";
-import { inviteTokenSchema, type GroupDto, type MemberDto } from "@chorely/api-client";
+import { asc, eq, and, count, isNotNull, ne, sql } from "drizzle-orm";
+import { inviteTokenSchema, type GroupDto, type LeaveGroupResponse, type MemberDto } from "@chorely/api-client";
 import { hashToken } from "../auth/hash";
 import type { Database } from "../db/client";
-import { accounts, groups, inviteLinks, members } from "../db/schema";
+import { accounts, chores, groups, inviteLinks, members } from "../db/schema";
 import { AppError } from "../http";
 import { newId } from "../ids";
 import type { MemberContext } from "./context";
@@ -93,7 +93,7 @@ export async function getGroup(ctx: MemberContext): Promise<GroupDto> {
 
 export async function listMembers(ctx: MemberContext): Promise<MemberDto[]> {
   return ctx.db
-    .select({ id: members.id, accountId: members.accountId, displayName: accounts.displayName })
+    .select({ id: members.id, accountId: accounts.id, displayName: accounts.displayName })
     .from(members)
     .innerJoin(accounts, eq(accounts.id, members.accountId))
     .where(eq(members.groupId, ctx.groupId))
@@ -104,4 +104,55 @@ export async function renameGroup(ctx: MemberContext, name: string): Promise<Gro
   const [group] = await ctx.db.update(groups).set({ name }).where(eq(groups.id, ctx.groupId)).returning(groupColumns);
   if (!group) throw groupNotFound();
   return group;
+}
+
+/**
+ * Makes a Member a Former member: their Chores become unassigned and the row loses its Account (ADR 0003). The
+ * last Member leaving deletes the Group instead, which needs `deleteGroup`. Bumping the revision first takes the
+ * Group row lock, so Members leaving at once see each other go, and clients refetch the Queue.
+ */
+async function depart(tx: Tx, member: { id: string; groupId: string }, deleteGroup: boolean): Promise<LeaveGroupResponse> {
+  const [group] = await tx
+    .update(groups)
+    .set({ revision: sql`${groups.revision} + 1` })
+    .where(eq(groups.id, member.groupId))
+    .returning({ id: groups.id });
+  if (!group) throw groupNotFound();
+  const [current] = await tx
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.id, member.id), isNotNull(members.accountId)));
+  if (!current) throw groupNotFound();
+
+  const [others] = await tx
+    .select({ n: count() })
+    .from(members)
+    .where(and(eq(members.groupId, member.groupId), isNotNull(members.accountId), ne(members.id, member.id)));
+  if (!others?.n) {
+    if (!deleteGroup) throw new AppError("conflict", "You are the last Member, so leaving deletes the Group");
+    await tx.delete(groups).where(eq(groups.id, member.groupId));
+    return { groupDeleted: true };
+  }
+  // Completed Chores too, so an Undo never reopens a Chore assigned to a Former member.
+  await tx.update(chores).set({ assigneeId: null }).where(eq(chores.assigneeId, member.id));
+  await tx.update(members).set({ accountId: null }).where(eq(members.id, member.id));
+  return { groupDeleted: false };
+}
+
+export async function leaveGroup(ctx: MemberContext, deleteGroup: boolean): Promise<LeaveGroupResponse> {
+  return ctx.db.transaction((tx) => depart(tx, { id: ctx.memberId, groupId: ctx.groupId }, deleteGroup));
+}
+
+/**
+ * For deleting an Account: makes it a Former member of every Group it is in, deleting any Group it was the last
+ * Member of. Keyed by Account, and takes the caller's transaction so the Account row can go in the same one.
+ */
+export async function leaveAllGroups(tx: Tx, accountId: string): Promise<void> {
+  await lockAccount(tx, accountId);
+  const memberships = await tx
+    .select({ id: members.id, groupId: members.groupId })
+    .from(members)
+    .where(eq(members.accountId, accountId))
+    .orderBy(asc(members.groupId));
+  for (const member of memberships) await depart(tx, member, true);
 }

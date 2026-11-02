@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Copy, RefreshCw, Share2 } from "lucide-react";
-import { type AccountDto, type GroupDetailResponse } from "@chorely/api-client";
+import { Copy, LogOut, RefreshCw, Share2, Trash2 } from "lucide-react";
+import { ApiError, type AccountDto, type GroupDetailResponse } from "@chorely/api-client";
 import { Button, Dialog, ErrorBanner, VisuallyHidden } from "../ui";
 import { api } from "./api";
 import { errorMessage } from "./error-message";
 import styles from "./group-settings.module.css";
 import { inviteUrl } from "./invite";
 
-/** The Group screen: rename the Group, see its Members, share or replace its Invite link, and see your Account. */
+/**
+ * The Group screen: rename the Group, see its Members, share or replace its Invite link, leave the Group, and see
+ * or delete your Account.
+ */
 export function GroupSettings({
   detail,
   account,
@@ -23,7 +26,7 @@ export function GroupSettings({
   const [busy, setBusy] = useState(false);
   const [inviteToken, setInviteToken] = useState<string>();
   const [copied, setCopied] = useState(false);
-  const [confirmingReplace, setConfirmingReplace] = useState(false);
+  const [confirming, setConfirming] = useState<"replace" | "leave" | "delete-account">();
   const linkInput = useRef<HTMLInputElement>(null);
 
   const groupId = detail.group.id;
@@ -77,6 +80,26 @@ export function GroupSettings({
       setInviteToken(token);
     });
 
+  const isLastMember = detail.members.length === 1;
+
+  const leave = () =>
+    run(async () => {
+      try {
+        await api.leaveGroup(groupId, { deleteGroup: isLastMember });
+      } catch (err) {
+        // The others left meanwhile: refresh so asking again warns that the Group will be deleted.
+        if (err instanceof ApiError && err.code === "conflict") onChange(await api.getGroup(groupId));
+        throw err;
+      }
+      window.location.assign("/");
+    });
+
+  const deleteAccount = () =>
+    run(async () => {
+      await api.deleteAccount();
+      window.location.assign("/");
+    });
+
   return (
     <section aria-label="Group screen" className={styles.screen}>
       {error && <ErrorBanner message={error} />}
@@ -115,6 +138,10 @@ export function GroupSettings({
             </li>
           ))}
         </ul>
+        <Button variant="ghost" size="small" className={styles.inlineAction} disabled={busy} onClick={() => setConfirming("leave")}>
+          <LogOut aria-hidden size={14} />
+          Leave Group
+        </Button>
       </Card>
 
       <Card title="Invite link">
@@ -149,9 +176,9 @@ export function GroupSettings({
             <Button
               variant="ghost"
               size="small"
-              className={styles.replace}
+              className={styles.inlineAction}
               disabled={busy}
-              onClick={() => setConfirmingReplace(true)}
+              onClick={() => setConfirming("replace")}
             >
               <RefreshCw aria-hidden size={14} />
               Replace Invite link
@@ -174,24 +201,90 @@ export function GroupSettings({
           <dt>Email</dt>
           <dd>{account.email}</dd>
         </dl>
+        <Button
+          variant="ghost"
+          size="small"
+          className={styles.inlineAction}
+          disabled={busy}
+          onClick={() => setConfirming("delete-account")}
+        >
+          <Trash2 aria-hidden size={14} />
+          Delete Account
+        </Button>
       </Card>
 
-      <Dialog open={confirmingReplace} onClose={() => setConfirmingReplace(false)} title="Replace this link?">
-        <p className={styles.muted}>The current link stops working. Anyone who has it but has not joined yet needs the new one.</p>
-        <div className={styles.dialogActions}>
-          <Button onClick={() => setConfirmingReplace(false)}>Cancel</Button>
-          <Button
-            variant="primary"
-            onClick={() => {
-              setConfirmingReplace(false);
-              void newInviteLink();
-            }}
-          >
-            Replace link
-          </Button>
-        </div>
-      </Dialog>
+      <Confirm
+        open={confirming === "replace"}
+        onClose={() => setConfirming(undefined)}
+        title="Replace this link?"
+        action="Replace link"
+        variant="primary"
+        onConfirm={() => void newInviteLink()}
+      >
+        The current link stops working. Anyone who has it but has not joined yet needs the new one.
+      </Confirm>
+
+      <Confirm
+        open={confirming === "leave"}
+        onClose={() => setConfirming(undefined)}
+        title={isLastMember ? `Leave and delete ${detail.group.name}?` : `Leave ${detail.group.name}?`}
+        action={isLastMember ? "Leave and delete Group" : "Leave Group"}
+        onConfirm={() => void leave()}
+      >
+        {isLastMember
+          ? "You are the last Member, so the Group is deleted with all its Chores and its Done list. This cannot be undone."
+          : "Your Chores become unassigned, and the Done list shows you as a Former member. You can join again with an Invite link."}
+      </Confirm>
+
+      <Confirm
+        open={confirming === "delete-account"}
+        onClose={() => setConfirming(undefined)}
+        title="Delete your Account?"
+        action="Delete Account"
+        onConfirm={() => void deleteAccount()}
+      >
+        You are signed out and your Account is deleted. You leave {detail.group.name}
+        {isLastMember ? ", and as its last Member the Group is deleted with all its Chores." : " and show there as a Former member."} This
+        cannot be undone.
+      </Confirm>
     </section>
+  );
+}
+
+/** A confirm Dialog: Cancel, or the action, which closes it and runs `onConfirm`. */
+function Confirm({
+  open,
+  title,
+  action,
+  variant = "danger",
+  onClose,
+  onConfirm,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  action: string;
+  variant?: "primary" | "danger";
+  onClose(): void;
+  onConfirm(): void;
+  children: ReactNode;
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} title={title}>
+      <p className={styles.muted}>{children}</p>
+      <div className={styles.dialogActions}>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant={variant}
+          onClick={() => {
+            onClose();
+            onConfirm();
+          }}
+        >
+          {action}
+        </Button>
+      </div>
+    </Dialog>
   );
 }
 

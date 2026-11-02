@@ -105,10 +105,10 @@ describe("Complete, Undo and the Done list (contract, real Postgres)", () => {
   });
 
   it("shows a completer who has left as a Former member (completedById null)", async () => {
-    const { ada, bob, group, bobId } = await setup();
+    const { ada, bob, group } = await setup();
     const { chore } = await ada.addChore(group.id, { title: "Bins" });
     await bob.completeChore(group.id, chore.id);
-    await app.removeMember(bobId);
+    await bob.leaveGroup(group.id, {});
     const { chores } = await ada.getDoneList(group.id);
     expect(chores[0]).toMatchObject({ id: chore.id, completedById: null });
     expect(chores[0]!.completedAt).toBeTruthy();

@@ -29,3 +29,13 @@ export function seedPosition(queue: readonly QueuedChore[], { dueDate, placement
   if (later === -1) return generateKeyBetween(last.position, null);
   return generateKeyBetween(queue[later - 1]?.position ?? null, queue[later]?.position ?? null);
 }
+
+/**
+ * The Position for a Chore moved between two anchors' keys (ADR 0002). `null` is an open end: the front when
+ * `after` is null, the back when `before` is null. Out-of-order or tied anchors have no key strictly between
+ * them, so this returns undefined and the caller treats the move as a conflict.
+ */
+export function positionBetween(after: string | null, before: string | null): string | undefined {
+  if (after !== null && before !== null && after >= before) return undefined;
+  return generateKeyBetween(after, before);
+}

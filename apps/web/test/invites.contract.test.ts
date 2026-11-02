@@ -6,19 +6,11 @@ afterEach(async () => {
   await app.close();
 });
 
-async function signedIn(email: string, displayName: string) {
-  await app.client.requestCode({ email });
-  const { token } = await app.client.verifyCode({ email, code: app.lastCode(email), transport: "bearer" });
-  const client = app.clientWithToken(token);
-  const { account } = await client.setDisplayName({ displayName });
-  return { client, account };
-}
-
 describe("Invite links (contract, real Postgres)", () => {
   it("a Member creates an Invite link and another Account joins the Group with it", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
-    const bob = await signedIn("bob@example.com", "Bob");
+    const ada = await app.signedIn("ada@example.com", "Ada");
+    const bob = await app.signedIn("bob@example.com", "Bob");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
 
     const { token } = await ada.client.createInviteLink(group.id);
@@ -34,9 +26,9 @@ describe("Invite links (contract, real Postgres)", () => {
 
   it("the link is reusable and joining again with it is harmless", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
-    const bob = await signedIn("bob@example.com", "Bob");
-    const cy = await signedIn("cy@example.com", "Cy");
+    const ada = await app.signedIn("ada@example.com", "Ada");
+    const bob = await app.signedIn("bob@example.com", "Bob");
+    const cy = await app.signedIn("cy@example.com", "Cy");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
     const { token } = await ada.client.createInviteLink(group.id);
 
@@ -48,9 +40,9 @@ describe("Invite links (contract, real Postgres)", () => {
 
   it("any Member can replace the link, which stops the old one", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
-    const bob = await signedIn("bob@example.com", "Bob");
-    const cy = await signedIn("cy@example.com", "Cy");
+    const ada = await app.signedIn("ada@example.com", "Ada");
+    const bob = await app.signedIn("bob@example.com", "Bob");
+    const cy = await app.signedIn("cy@example.com", "Cy");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
     const first = await ada.client.createInviteLink(group.id);
     await bob.client.joinGroup({ token: first.token });
@@ -68,7 +60,7 @@ describe("Invite links (contract, real Postgres)", () => {
 
   it("an unknown or malformed link is rejected with a clear message", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
+    const ada = await app.signedIn("ada@example.com", "Ada");
     await expect(ada.client.joinGroup({ token: "AAAAAAAAAAAAAAAAAAAAAA" })).rejects.toMatchObject({
       code: "invalid_invite",
       message: expect.stringMatching(/invite link/i),
@@ -78,8 +70,8 @@ describe("Invite links (contract, real Postgres)", () => {
 
   it("a person already in a Group cannot join another, and stays in theirs", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
-    const bob = await signedIn("bob@example.com", "Bob");
+    const ada = await app.signedIn("ada@example.com", "Ada");
+    const bob = await app.signedIn("bob@example.com", "Bob");
     const { group: flat } = await ada.client.createGroup({ name: "Flat 4" });
     const { group: office } = await bob.client.createGroup({ name: "Office" });
     const { token } = await ada.client.createInviteLink(flat.id);
@@ -95,8 +87,8 @@ describe("Invite links (contract, real Postgres)", () => {
 
   it("only Members can create a link, and signed-out callers cannot join", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
-    const bob = await signedIn("bob@example.com", "Bob");
+    const ada = await app.signedIn("ada@example.com", "Ada");
+    const bob = await app.signedIn("bob@example.com", "Bob");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
     const { token } = await ada.client.createInviteLink(group.id);
 
@@ -107,7 +99,7 @@ describe("Invite links (contract, real Postgres)", () => {
 
   it("stores only a hash of the token", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
+    const ada = await app.signedIn("ada@example.com", "Ada");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
     const { token } = await ada.client.createInviteLink(group.id);
     const stored = await app.storedInviteHashes();
@@ -118,8 +110,8 @@ describe("Invite links (contract, real Postgres)", () => {
 
   it("any Member can read the current link back, so it can be copied after a reload", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
-    const bob = await signedIn("bob@example.com", "Bob");
+    const ada = await app.signedIn("ada@example.com", "Ada");
+    const bob = await app.signedIn("bob@example.com", "Bob");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
     expect(await ada.client.getInviteLink(group.id)).toEqual({ token: null });
 
@@ -134,8 +126,8 @@ describe("Invite links (contract, real Postgres)", () => {
 
   it("only Members can read the link", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
-    const bob = await signedIn("bob@example.com", "Bob");
+    const ada = await app.signedIn("ada@example.com", "Ada");
+    const bob = await app.signedIn("bob@example.com", "Bob");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
     await ada.client.createInviteLink(group.id);
     await expect(bob.client.getInviteLink(group.id)).rejects.toMatchObject({ code: "not_found" });
@@ -144,7 +136,7 @@ describe("Invite links (contract, real Postgres)", () => {
 
   it("keeps the readable copy encrypted, never the token in the clear", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
+    const ada = await app.signedIn("ada@example.com", "Ada");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
     const { token } = await ada.client.createInviteLink(group.id);
     const [ciphertext] = await app.storedInviteCiphertexts();
@@ -154,7 +146,7 @@ describe("Invite links (contract, real Postgres)", () => {
 
   it("reads back no link when the stored copy cannot be decrypted, and a replace repairs it", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
+    const ada = await app.signedIn("ada@example.com", "Ada");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
     await ada.client.createInviteLink(group.id);
     await app.corruptInviteCiphertexts();

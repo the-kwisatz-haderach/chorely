@@ -31,6 +31,7 @@ import {
   type HealthResponse,
   type InviteLinkResponse,
   type JoinGroupBody,
+  type MoveChoreBody,
   type ListGroupsResponse,
   type MeResponse,
   type OkResponse,
@@ -77,6 +78,11 @@ export interface ApiClient {
   updateChore(groupId: string, choreId: string, body: UpdateChoreBody): Promise<ChoreResponse>;
   /** Permanently deletes an open Chore. Rejects with `conflict` if it is already done. */
   deleteChore(groupId: string, choreId: string): Promise<DeleteChoreResponse>;
+  /**
+   * Moves an open Chore between anchors and returns it with its new `position`. A hard-deleted anchor falls back
+   * to the other one; with neither anchor left, or a Chore that is already done, it rejects with `conflict`.
+   */
+  moveChore(groupId: string, choreId: string, body: MoveChoreBody): Promise<ChoreResponse>;
   /** Takes an unassigned Chore. Rejects with `conflict` (409) if someone else holds it. */
   claimChore(groupId: string, choreId: string): Promise<ChoreResponse>;
   /** Gives up a Chore the caller holds. Rejects with `conflict` if they do not hold it. */
@@ -159,6 +165,8 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
       request(choreUrl(groupId, choreId), choreResponseSchema, { method: "PATCH", body }),
     deleteChore: (groupId, choreId) =>
       request(choreUrl(groupId, choreId), deleteChoreResponseSchema, { method: "DELETE" }),
+    moveChore: (groupId, choreId, body) =>
+      request(choreUrl(groupId, choreId, "move"), choreResponseSchema, { method: "POST", body }),
     claimChore: (groupId, choreId) =>
       request(choreUrl(groupId, choreId, "claim"), choreResponseSchema, {
         method: "POST",

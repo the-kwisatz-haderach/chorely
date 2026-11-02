@@ -6,18 +6,10 @@ afterEach(async () => {
   await app.close();
 });
 
-async function signedIn(email: string, displayName: string) {
-  await app.client.requestCode({ email });
-  const { token } = await app.client.verifyCode({ email, code: app.lastCode(email), transport: "bearer" });
-  const client = app.clientWithToken(token);
-  const { account } = await client.setDisplayName({ displayName });
-  return { client, account };
-}
-
 describe("Groups (contract, real Postgres)", () => {
   it("a new account has no Group; creating one makes the creator its Member", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
+    const ada = await app.signedIn("ada@example.com", "Ada");
     expect((await ada.client.listGroups()).groups).toEqual([]);
 
     const { group } = await ada.client.createGroup({ name: "  Flat 4  " });
@@ -31,7 +23,7 @@ describe("Groups (contract, real Postgres)", () => {
 
   it("rejects an empty name and a second Group for the same Account", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
+    const ada = await app.signedIn("ada@example.com", "Ada");
     await expect(ada.client.createGroup({ name: "   " })).rejects.toMatchObject({ code: "validation_failed" });
     await ada.client.createGroup({ name: "One" });
     await expect(ada.client.createGroup({ name: "Two" })).rejects.toMatchObject({ code: "conflict", status: 409 });
@@ -39,7 +31,7 @@ describe("Groups (contract, real Postgres)", () => {
 
   it("any Member can rename the Group", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
+    const ada = await app.signedIn("ada@example.com", "Ada");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
     const renamed = await ada.client.renameGroup(group.id, { name: "Flat 5" });
     expect(renamed.group).toEqual({ id: group.id, name: "Flat 5" });
@@ -49,8 +41,8 @@ describe("Groups (contract, real Postgres)", () => {
 
   it("rejects non-Members and signed-out callers on every Group-scoped endpoint", async () => {
     app = await createTestApp();
-    const ada = await signedIn("ada@example.com", "Ada");
-    const bob = await signedIn("bob@example.com", "Bob");
+    const ada = await app.signedIn("ada@example.com", "Ada");
+    const bob = await app.signedIn("bob@example.com", "Bob");
     const { group } = await ada.client.createGroup({ name: "Flat 4" });
 
     await expect(bob.client.getGroup(group.id)).rejects.toMatchObject({ code: "not_found", status: 404 });

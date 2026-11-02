@@ -1,18 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { EMAIL_OUTBOX_DIR } from "../playwright.config";
-
-async function emailedCode(email: string): Promise<string> {
-  const file = join(EMAIL_OUTBOX_DIR, `${encodeURIComponent(email)}.json`);
-  let text = "";
-  await expect(async () => {
-    text = (JSON.parse(await readFile(file, "utf8")) as { text: string }).text;
-  }).toPass();
-  const code = /\b(\d{6})\b/.exec(text)?.[1];
-  if (!code) throw new Error("No code in email");
-  return code;
-}
+import { emailedCode } from "./helpers";
 
 test("first sign-in: email, code, display name, create and rename a Group, then sign out", async ({ page }) => {
   const email = `e2e-${Date.now()}@example.com`;

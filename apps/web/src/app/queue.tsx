@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { ApiError, type ChoreDto, type MemberDto } from "@chorely/api-client";
 import { api } from "./api";
 import { DoneList } from "./done-list";
 import { errorMessage } from "./error-message";
+import { useMovableQueue } from "./use-movable-queue";
 
 /** Today as a local `YYYY-MM-DD`, comparable with a Chore's date-only Due date. */
 function todayLocal(): string {
@@ -44,10 +45,15 @@ interface ChoreActionsProps {
   onClaim(): void;
   onUnclaim(): void;
   onAssign(assigneeId: string | null): void;
+  onMove(to: "front" | "back"): void;
+}
+
+function closeMenu(e: MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.closest("details")?.removeAttribute("open");
 }
 
 /** One-tap Claim or Unclaim, plus assigning the Chore to any Member. */
-function ChoreActions({ groupId, chore, members, myMemberId, disabled, onClaim, onUnclaim, onAssign }: ChoreActionsProps) {
+function ChoreActions({ groupId, chore, members, myMemberId, disabled, onClaim, onUnclaim, onAssign, onMove }: ChoreActionsProps) {
   // A Chore whose Assignee has left reads as unassigned (the server nulls it; this covers a stale Queue).
   const held = members.some((m) => m.id === chore.assigneeId) ? chore.assigneeId : null;
   return (
@@ -78,6 +84,20 @@ function ChoreActions({ groupId, chore, members, myMemberId, disabled, onClaim, 
           </option>
         ))}
       </select>
+      <details style={{ display: "inline-block" }}>
+        <summary aria-label={`Move ${chore.title}`}>Move</summary>
+        {(["front", "back"] as const).map((to) => (
+          <button
+            key={to}
+            onClick={(e) => {
+              closeMenu(e);
+              onMove(to);
+            }}
+          >
+            Move to {to}
+          </button>
+        ))}
+      </details>
     </span>
   );
 }
@@ -94,10 +114,10 @@ export function Queue({
   accountId: string;
   inviteLink?: string;
 }) {
-  const [chores, setChores] = useState<ChoreDto[]>();
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const { chores, showQueue, moveToEnd, dragProps } = useMovableQueue(groupId, setError);
   const [undo, setUndo] = useState<{ id: string; title: string }>();
   const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [showDone, setShowDone] = useState(false);
@@ -109,7 +129,7 @@ export function Queue({
   useEffect(() => {
     api
       .getQueue(groupId)
-      .then(({ chores }) => setChores(chores))
+      .then(({ chores }) => showQueue(chores))
       .catch((err: unknown) => setError(errorMessage(err)));
   }, [groupId]);
 
@@ -126,7 +146,7 @@ export function Queue({
         assigneeId: text("assigneeId") || null,
         ...(placement ? { placement } : {}),
       });
-      setChores((await api.getQueue(groupId)).chores);
+      showQueue((await api.getQueue(groupId)).chores);
       setAdding(false);
     } catch (err) {
       setError(errorMessage(err));
@@ -149,7 +169,7 @@ export function Queue({
       );
     }
     try {
-      setChores((await api.getQueue(groupId)).chores);
+      showQueue((await api.getQueue(groupId)).chores);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -188,6 +208,7 @@ export function Queue({
       onClaim={() => void runAndRefetch(() => api.claimChore(groupId, chore.id), LOST_CLAIM)}
       onUnclaim={() => void runAndRefetch(() => api.unclaimChore(groupId, chore.id))}
       onAssign={(assigneeId) => void runAndRefetch(() => api.assignChore(groupId, chore.id, { assigneeId }))}
+      onMove={(to) => moveToEnd(chore, to)}
     />
   );
 
@@ -202,7 +223,7 @@ export function Queue({
         </p>
       )}
       {next && (
-        <article aria-label="Next up">
+        <article aria-label="Next up" {...dragProps(next)}>
           <h4>Next up</h4>
           <strong>{next.title}</strong>
           {next.note && <p>{next.note}</p>}
@@ -221,7 +242,7 @@ export function Queue({
       {rest.length > 0 && (
         <ol start={2} aria-label="Queue list">
           {rest.map((c) => (
-            <li key={c.id}>
+            <li key={c.id} {...dragProps(c)}>
               <strong>{c.title}</strong>
               <ChoreMeta chore={c} members={members} />
               {actions(c)}

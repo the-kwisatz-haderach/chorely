@@ -6,17 +6,9 @@ afterEach(async () => {
   await app.close();
 });
 
-async function signedIn(email: string, displayName: string) {
-  await app.client.requestCode({ email });
-  const { token } = await app.client.verifyCode({ email, code: app.lastCode(email), transport: "bearer" });
-  const client = app.clientWithToken(token);
-  const { account } = await client.setDisplayName({ displayName });
-  return { client, account };
-}
-
 async function groupWithAda() {
   app = await createTestApp();
-  const ada = await signedIn("ada@example.com", "Ada");
+  const ada = await app.signedIn("ada@example.com", "Ada");
   const { group } = await ada.client.createGroup({ name: "Flat 4" });
   return { ada, group };
 }
@@ -120,7 +112,7 @@ describe("Queue: add and view Chores (contract, real Postgres)", () => {
 
   it("only accepts an Assignee who is a Member of the Group", async () => {
     const { ada, group } = await groupWithAda();
-    const bob = await signedIn("bob@example.com", "Bob");
+    const bob = await app.signedIn("bob@example.com", "Bob");
     const bobsGroup = await bob.client.createGroup({ name: "Elsewhere" });
     const bobMember = (await bob.client.getGroup(bobsGroup.group.id)).members[0]!;
     await expect(ada.client.addChore(group.id, { title: "x", assigneeId: bobMember.id })).rejects.toMatchObject({
@@ -131,7 +123,7 @@ describe("Queue: add and view Chores (contract, real Postgres)", () => {
 
   it("keeps each Group's Queue separate and hides it from non-Members and signed-out callers", async () => {
     const { ada, group } = await groupWithAda();
-    const bob = await signedIn("bob@example.com", "Bob");
+    const bob = await app.signedIn("bob@example.com", "Bob");
     const bobsGroup = await bob.client.createGroup({ name: "Elsewhere" });
     await ada.client.addChore(group.id, { title: "Ada's" });
 

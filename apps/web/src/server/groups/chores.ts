@@ -1,5 +1,5 @@
-import { and, asc, desc, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
-import { seedPosition } from "@chorely/domain";
+import { and, asc, desc, eq, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { positionBetween, seedPosition } from "@chorely/domain";
 import {
   choreIdSchema,
   doneQuerySchema,
@@ -10,6 +10,7 @@ import {
   type DeleteChoreResponse,
   type CompleteChoreResponse,
   type DoneListResponse,
+  type MoveChoreInput,
   type QueueResponse,
   type UpdateChoreInput,
 } from "@chorely/api-client";
@@ -30,6 +31,10 @@ const choreColumns = {
   position: chores.position,
 };
 
+/** Queue order: `(position, id)`, with keys compared byte-wise. */
+const queueOrder = [asc(sql`${chores.position} collate "C"`), asc(chores.id)];
+const reverseQueueOrder = [desc(sql`${chores.position} collate "C"`), desc(chores.id)];
+
 /** The open Chores of the Group in Queue order: `(position, id)`, byte-wise. */
 export async function getQueue(ctx: MemberContext): Promise<QueueResponse> {
   return ctx.db.transaction(async (tx) => {
@@ -39,7 +44,7 @@ export async function getQueue(ctx: MemberContext): Promise<QueueResponse> {
       .select(choreColumns)
       .from(chores)
       .where(and(eq(chores.groupId, ctx.groupId), isNull(chores.completedAt)))
-      .orderBy(asc(sql`${chores.position} collate "C"`), asc(chores.id));
+      .orderBy(...queueOrder);
     return { chores: rows, revision: group.revision };
   });
 }
@@ -55,7 +60,7 @@ export async function addChore(ctx: MemberContext, input: AddChoreInput): Promis
       .select({ position: chores.position, dueDate: chores.dueDate })
       .from(chores)
       .where(and(eq(chores.groupId, ctx.groupId), isNull(chores.completedAt)))
-      .orderBy(asc(sql`${chores.position} collate "C"`), asc(chores.id));
+      .orderBy(...queueOrder);
 
     const chore = {
       id: newId(),
@@ -177,6 +182,99 @@ export async function updateChore(ctx: MemberContext, choreId: string, input: Up
     };
     if (Object.keys(changes).length > 0) await tx.update(chores).set(changes).where(eq(chores.id, choreId));
     return { chore: { ...chore, ...changes }, revision: group.revision };
+  });
+}
+
+type Anchor = { id: string; position: string };
+
+function queueChanged(): AppError {
+  return new AppError("conflict", "The Queue changed while you were moving this Chore");
+}
+
+/** An anchor's key, open or completed (a completed Chore keeps its key). Undefined when it is gone or not ours. */
+async function findAnchor(tx: Tx, ctx: MemberContext, id: string): Promise<Anchor | undefined> {
+  const [anchor] = await tx
+    .select({ id: chores.id, position: chores.position })
+    .from(chores)
+    .where(and(eq(chores.id, id), eq(chores.groupId, ctx.groupId)));
+  return anchor;
+}
+
+/**
+ * The open Chore right after (or before) `anchor` in Queue order, skipping the Chore being moved. Without an
+ * anchor it is the first (or last) open Chore.
+ */
+async function openNeighbour(tx: Tx, ctx: MemberContext, movingId: string, side: "after" | "before", anchor?: Anchor) {
+  const key = sql`(${chores.position} collate "C", ${chores.id})`;
+  const anchorKey = anchor && sql`(${anchor.position} collate "C", ${anchor.id}::uuid)`;
+  const [row] = await tx
+    .select({ id: chores.id, position: chores.position })
+    .from(chores)
+    .where(
+      and(
+        eq(chores.groupId, ctx.groupId),
+        isNull(chores.completedAt),
+        ne(chores.id, movingId),
+        anchorKey && (side === "after" ? sql`${key} > ${anchorKey}` : sql`${key} < ${anchorKey}`),
+      ),
+    )
+    .orderBy(...(side === "after" ? queueOrder : reverseQueueOrder))
+    .limit(1);
+  return row;
+}
+
+/**
+ * The key for a move between two anchors. If the pair is unusable (one was hard-deleted, or they are tied or no
+ * longer in order because of another move) the Chore lands right beside a surviving anchor instead. Only when
+ * no anchor is left is it a `conflict`.
+ */
+async function keyBetweenAnchors(tx: Tx, ctx: MemberContext, movingId: string, input: { afterId: string; beforeId: string }) {
+  const after = await findAnchor(tx, ctx, input.afterId);
+  const before = await findAnchor(tx, ctx, input.beforeId);
+  if (!after && !before) throw queueChanged();
+  const between = after && before && positionBetween(after.position, before.position);
+  if (between) return between;
+  if (after) {
+    const next = await openNeighbour(tx, ctx, movingId, "after", after);
+    const key = positionBetween(after.position, next?.position ?? null);
+    if (key) return key;
+  }
+  if (before) {
+    const previous = await openNeighbour(tx, ctx, movingId, "before", before);
+    const key = positionBetween(previous?.position ?? null, before.position);
+    if (key) return key;
+  }
+  throw queueChanged();
+}
+
+/**
+ * Moves an open Chore and generates its new key (ADR 0002). Omitting `afterId` moves it to the front of the
+ * Queue and omitting `beforeId` to the back, whatever the Queue looks like now; with both it goes between them.
+ * Bumping the revision first takes the Group row lock, so concurrent moves of one Chore are last-write-wins.
+ */
+export async function moveChore(ctx: MemberContext, choreId: string, input: MoveChoreInput): Promise<ChoreResponse> {
+  const { afterId, beforeId } = input;
+  if (afterId === choreId || beforeId === choreId) {
+    throw new AppError("validation_failed", "A Chore cannot be anchored on itself");
+  }
+  return ctx.db.transaction(async (tx) => {
+    const group = await bumpRevision(tx, ctx);
+    const chore = await requireOpenChore(tx, ctx, choreId);
+
+    let position: string | undefined;
+    if (afterId && beforeId) {
+      position = await keyBetweenAnchors(tx, ctx, choreId, { afterId, beforeId });
+    } else if (beforeId) {
+      const first = await openNeighbour(tx, ctx, choreId, "after");
+      position = positionBetween(null, first?.position ?? null);
+    } else {
+      const last = await openNeighbour(tx, ctx, choreId, "before");
+      position = positionBetween(last?.position ?? null, null);
+    }
+    if (position === undefined) throw queueChanged();
+
+    await tx.update(chores).set({ position }).where(eq(chores.id, choreId));
+    return { chore: { ...chore, position }, revision: group.revision };
   });
 }
 

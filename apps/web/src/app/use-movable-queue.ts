@@ -2,7 +2,7 @@
 
 import { useRef, useState, type DragEvent } from "react";
 import { ApiError, type ChoreDto } from "@chorely/api-client";
-import { positionBetween } from "@chorely/domain";
+import { positionBetween, type Placement } from "@chorely/domain";
 import { api } from "./api";
 import { errorMessage } from "./error-message";
 
@@ -79,7 +79,7 @@ export function useMovableQueue(groupId: string, setError: (message: string | un
     }
   }
 
-  function moveToEnd(chore: ChoreDto, to: "front" | "back") {
+  function moveToEnd(chore: ChoreDto, to: Placement) {
     void move(chore, to === "front" ? 0 : queue.length - 1);
   }
 

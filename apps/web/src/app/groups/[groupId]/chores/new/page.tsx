@@ -1,4 +1,5 @@
 import { AuthFlow } from "../../../../auth-flow";
+import { parsePlacement } from "../../../../chore-fields";
 
 export default async function NewChorePage({
   params,
@@ -9,5 +10,5 @@ export default async function NewChorePage({
 }) {
   const { groupId } = await params;
   const { title = "", placement } = await searchParams;
-  return <AuthFlow newChore={{ groupId, title, placement: placement === "front" ? "front" : "back" }} />;
+  return <AuthFlow newChore={{ groupId, title, placement: parsePlacement(placement) }} />;
 }

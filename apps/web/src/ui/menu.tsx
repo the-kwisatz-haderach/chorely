@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, type ButtonHTMLAttributes, type ReactNode, type ToggleEvent } from "react";
+import { cx } from "./class-names";
 import styles from "./menu.module.css";
 
 /** A trigger button and a Popover API menu of `MenuItem`s, placed under the trigger's right edge. */
@@ -32,7 +33,7 @@ export function Menu({
       <button
         ref={triggerRef}
         type="button"
-        className={[styles.trigger, triggerClassName].filter(Boolean).join(" ")}
+        className={cx(styles.trigger, triggerClassName)}
         popoverTarget={id}
         aria-label={label}
       >
@@ -45,7 +46,7 @@ export function Menu({
   );
 }
 
-/** One action in a `Menu`; picking it closes the menu. */
+/** One action in a `Menu`, optionally led by an icon; picking it closes the menu. */
 export function MenuItem({ onClick, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button

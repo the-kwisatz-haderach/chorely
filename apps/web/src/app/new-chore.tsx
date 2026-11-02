@@ -3,8 +3,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { type MemberDto } from "@chorely/api-client";
+import { type Placement } from "@chorely/domain";
 import { api } from "./api";
-import { ChoreFields, PlacementToggle, choreFieldValues, placementValue, type Placement } from "./chore-fields";
+import { ChoreFields, PlacementToggle, addChoreBody } from "./chore-fields";
 import { errorMessage } from "./error-message";
 
 /** Full-page add screen, reached by "More options" from the Queue's add sheet with its title and placement carried over. */
@@ -23,7 +24,7 @@ export function NewChore({ groupId, title, placement }: { groupId: string; title
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const body = { ...choreFieldValues(e.currentTarget), ...placementValue(e.currentTarget) };
+    const body = addChoreBody(e.currentTarget);
     setBusy(true);
     setError(undefined);
     try {

@@ -2,8 +2,8 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { type AccountDto } from "@chorely/api-client";
+import { type Placement } from "@chorely/domain";
 import { api } from "./api";
-import { type Placement } from "./chore-fields";
 import { errorMessage } from "./error-message";
 import { EditChore } from "./edit-chore";
 import { GroupHome } from "./group-home";

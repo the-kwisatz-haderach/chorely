@@ -1,5 +1,4 @@
-/* A segmented control: each radio covers its own segment, so the whole segment is the target. */
-.toggle {
+.control {
   display: inline-flex;
   margin: 0 0 var(--space-3);
   padding: 0;
@@ -8,7 +7,8 @@
   overflow: hidden;
 }
 
-.toggle legend {
+/* Floated so it sits in the row as the first segment instead of on the border. */
+.legend {
   float: left;
   align-self: center;
   padding: 0 var(--space-3);
@@ -16,6 +16,7 @@
   font-size: var(--font-size-1);
 }
 
+/* Each radio covers its own segment, so the whole segment is the target. */
 .segment {
   position: relative;
   display: inline-flex;
@@ -42,7 +43,8 @@
   color: var(--color-on-primary);
 }
 
+/* Drawn inside the segment: the control's overflow clips anything outside it. */
 .segment:has(input:focus-visible) {
-  outline: 3px solid var(--color-focus);
-  outline-offset: -3px;
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }

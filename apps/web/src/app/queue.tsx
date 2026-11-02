@@ -15,10 +15,11 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { ApiError, type ChoreDto, type MemberDto } from "@chorely/api-client";
+import { type Placement } from "@chorely/domain";
 import { api } from "./api";
-import { PlacementToggle, placementValue } from "./chore-fields";
+import { MemberOptions, PlacementToggle, addChoreBody } from "./chore-fields";
 import { errorMessage } from "./error-message";
-import { Button, EmptyState, ErrorBanner, Menu, MenuItem, Sheet, Toast } from "../ui";
+import { Button, cx, EmptyState, ErrorBanner, Menu, MenuItem, Sheet, Toast, VisuallyHidden } from "../ui";
 import { useMovableQueue } from "./use-movable-queue";
 import styles from "./queue.module.css";
 
@@ -44,7 +45,7 @@ interface ChoreMetaProps {
   onAssign(assigneeId: string | null): void;
 }
 
-/** The muted line under a Chore's title: its Due date, its Assignee as a pill that reassigns, and Claim or Unclaim. */
+/** The line under a Chore's title: its Due date (muted), its Assignee as a pill that reassigns, and Claim or Unclaim. */
 function ChoreMeta({ chore, members, myMemberId, disabled, onClaim, onUnclaim, onAssign }: ChoreMetaProps) {
   // A Chore whose Assignee has left reads as unassigned (the server nulls it; this covers a stale Queue).
   const assignee = members.find((m) => m.id === chore.assigneeId);
@@ -58,13 +59,13 @@ function ChoreMeta({ chore, members, myMemberId, disabled, onClaim, onUnclaim, o
             Due {chore.dueDate} · Overdue
           </span>
         ) : (
-          <span>Due {chore.dueDate}</span>
+          <span className={styles.due}>Due {chore.dueDate}</span>
         ))}
       {/* The pill shows the Assignee; the transparent select over it reassigns to any Member. */}
       <span className={styles.pill}>
         {assignee ? (
           <>
-            <span className={styles.visuallyHidden}>Assigned to </span>
+            <VisuallyHidden>Assigned to </VisuallyHidden>
             {assignee.displayName ?? "Unnamed"}
           </>
         ) : (
@@ -78,21 +79,22 @@ function ChoreMeta({ chore, members, myMemberId, disabled, onClaim, onUnclaim, o
           value={assignee?.id ?? ""}
           onChange={(e) => onAssign(e.target.value || null)}
         >
-          <option value="">Unassigned</option>
-          {members.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.displayName ?? "Unnamed"}
-            </option>
-          ))}
+          <MemberOptions members={members} />
         </select>
       </span>
       {!assignee && (
-        <Button className={styles.claim} disabled={disabled} onClick={onClaim} aria-label={`Claim ${chore.title}`}>
+        <Button variant="outline" size="small" disabled={disabled} onClick={onClaim} aria-label={`Claim ${chore.title}`}>
           Claim
         </Button>
       )}
       {assignee && assignee.id === myMemberId && (
-        <Button className={styles.claim} disabled={disabled} onClick={onUnclaim} aria-label={`Unclaim ${chore.title}`}>
+        <Button
+          variant="outline"
+          size="small"
+          disabled={disabled}
+          onClick={onUnclaim}
+          aria-label={`Unclaim ${chore.title}`}
+        >
           Unclaim
         </Button>
       )}
@@ -121,15 +123,15 @@ function DragHandle(props: HTMLAttributes<HTMLSpanElement>) {
 }
 
 /** The "⋯" menu: Move to front and Move to back. */
-function MoveMenu({ chore, onMove }: { chore: ChoreDto; onMove(to: "front" | "back"): void }) {
+function MoveMenu({ chore, onMove }: { chore: ChoreDto; onMove(to: Placement): void }) {
   return (
     <Menu label={`Move ${chore.title}`} trigger={<Ellipsis aria-hidden size={20} />} triggerClassName={styles.more}>
       <MenuItem onClick={() => onMove("front")}>
-        <ArrowUpToLine aria-hidden size={16} className={styles.menuIcon} />
+        <ArrowUpToLine aria-hidden size={16} />
         Move to front
       </MenuItem>
       <MenuItem onClick={() => onMove("back")}>
-        <ArrowDownToLine aria-hidden size={16} className={styles.menuIcon} />
+        <ArrowDownToLine aria-hidden size={16} />
         Move to back
       </MenuItem>
     </Menu>
@@ -156,11 +158,11 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
   }, [groupId]);
 
   async function submit(form: HTMLFormElement) {
-    const title = String(new FormData(form).get("title") ?? "");
+    const body = addChoreBody(form);
     setBusy(true);
     setError(undefined);
     try {
-      await api.addChore(groupId, { title, ...placementValue(form) });
+      await api.addChore(groupId, body);
       showQueue((await api.getQueue(groupId)).chores);
       setAdding(false);
     } catch (err) {
@@ -172,11 +174,8 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
 
   /** Carries the sheet's title and placement over to the full add screen. */
   function moreOptions(form: HTMLFormElement) {
-    const data = new FormData(form);
-    const query = new URLSearchParams({
-      title: String(data.get("title") ?? ""),
-      placement: String(data.get("placement") ?? "back"),
-    });
+    const { title, placement = "back" } = addChoreBody(form);
+    const query = new URLSearchParams({ title, placement });
     router.push(`/groups/${groupId}/chores/new?${query}`);
   }
 
@@ -239,7 +238,7 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
 
   return (
     <section aria-label="Queue" className={styles.queue}>
-      <h2 className={styles.visuallyHidden}>Queue</h2>
+      <VisuallyHidden as="h2">Queue</VisuallyHidden>
       {error && <ErrorBanner message={error} />}
       {chores && !next && (
         <EmptyState
@@ -265,7 +264,8 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
           <ChoreTitle groupId={groupId} chore={next} className={styles.heroTitle} />
           {next.note && <p className={styles.note}>{next.note}</p>}
           {meta(next)}
-          <button
+          <Button
+            variant="inverse"
             disabled={busy}
             onClick={() => void complete(next)}
             aria-label={`Complete ${next.title}`}
@@ -273,7 +273,7 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
           >
             <Check aria-hidden size={20} />
             Complete
-          </button>
+          </Button>
         </article>
       )}
       {rest.length > 0 && (
@@ -298,7 +298,7 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
 
       <Button
         variant="primary"
-        className={[styles.fab, undo && styles.fabRaised].filter(Boolean).join(" ")}
+        className={cx(styles.fab, undo && styles.fabRaised)}
         onClick={() => setAdding(true)} aria-label="Add a Chore">
         <Plus aria-hidden size={28} />
       </Button>

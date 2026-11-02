@@ -10,6 +10,8 @@ export const databaseUrl = process.env.DATABASE_URL ?? "postgres://chorely:chore
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
+  // One at a time: with parallel workers several journeys time out.
+  workers: 1,
   use: { baseURL: `http://localhost:${port}` },
   webServer: {
     // CI builds first; locally the dev server is fine.

@@ -45,12 +45,7 @@ export async function getQueue(ctx: MemberContext): Promise<QueueResponse> {
 export async function addChore(ctx: MemberContext, input: AddChoreInput): Promise<AddChoreResponse> {
   return ctx.db.transaction(async (tx) => {
     // Bumping first takes the Group row lock, which serialises adds so each reads the Queue it inserts into.
-    const [group] = await tx
-      .update(groups)
-      .set({ revision: sql`${groups.revision} + 1` })
-      .where(eq(groups.id, ctx.groupId))
-      .returning({ revision: groups.revision });
-    if (!group) throw groupNotFound();
+    const group = await bumpRevision(tx, ctx);
 
     if (input.assigneeId) {
       const [assignee] = await tx
@@ -81,6 +76,17 @@ export async function addChore(ctx: MemberContext, input: AddChoreInput): Promis
 
 type Tx = Parameters<Parameters<MemberContext["db"]["transaction"]>[0]>[0];
 
+/** Bumps the Group revision. As the first write of a mutation it also takes the Group row lock. */
+async function bumpRevision(tx: Tx, ctx: MemberContext): Promise<{ revision: number }> {
+  const [group] = await tx
+    .update(groups)
+    .set({ revision: sql`${groups.revision} + 1` })
+    .where(eq(groups.id, ctx.groupId))
+    .returning({ revision: groups.revision });
+  if (!group) throw groupNotFound();
+  return group;
+}
+
 function choreNotFound(): AppError {
   return new AppError("not_found", "Chore not found");
 }
@@ -101,12 +107,7 @@ async function changeAssignee(
 ): Promise<ChoreResponse> {
   if (!choreIdSchema.safeParse(choreId).success) throw choreNotFound();
   return ctx.db.transaction(async (tx) => {
-    const [group] = await tx
-      .update(groups)
-      .set({ revision: sql`${groups.revision} + 1` })
-      .where(eq(groups.id, ctx.groupId))
-      .returning({ revision: groups.revision });
-    if (!group) throw groupNotFound();
+    const group = await bumpRevision(tx, ctx);
 
     const [chore] = await tx
       .select({ ...choreColumns, completedAt: chores.completedAt })
@@ -170,12 +171,7 @@ function toDoneDto(row: DoneRow): CompleteChoreResponse["chore"] {
 export async function completeChore(ctx: MemberContext, choreId: string): Promise<CompleteChoreResponse> {
   if (!choreIdSchema.safeParse(choreId).success) throw choreNotFound();
   return ctx.db.transaction(async (tx) => {
-    const [group] = await tx
-      .update(groups)
-      .set({ revision: sql`${groups.revision} + 1` })
-      .where(eq(groups.id, ctx.groupId))
-      .returning({ revision: groups.revision });
-    if (!group) throw groupNotFound();
+    const group = await bumpRevision(tx, ctx);
 
     const [row] = await tx
       .update(chores)
@@ -197,12 +193,7 @@ export async function completeChore(ctx: MemberContext, choreId: string): Promis
 export async function undoCompleteChore(ctx: MemberContext, choreId: string): Promise<ChoreResponse> {
   if (!choreIdSchema.safeParse(choreId).success) throw choreNotFound();
   return ctx.db.transaction(async (tx) => {
-    const [group] = await tx
-      .update(groups)
-      .set({ revision: sql`${groups.revision} + 1` })
-      .where(eq(groups.id, ctx.groupId))
-      .returning({ revision: groups.revision });
-    if (!group) throw groupNotFound();
+    const group = await bumpRevision(tx, ctx);
 
     const [chore] = await tx
       .update(chores)

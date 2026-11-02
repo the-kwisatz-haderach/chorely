@@ -206,9 +206,6 @@ export function Queue({
               <strong>{c.title}</strong>
               <ChoreMeta chore={c} members={members} />
               {actions(c)}
-              <button disabled={busy} onClick={() => void complete(c)} aria-label={`Complete ${c.title}`}>
-                Complete
-              </button>
             </li>
           ))}
         </ol>

@@ -30,6 +30,11 @@ function weekday(days: number): Weekday {
   return ((((days + 3) % 7) + 7) % 7 + 1) as Weekday;
 }
 
+/** The ISO weekday of a date. */
+export function weekdayOf(date: DateOnly): Weekday {
+  return weekday(toDays(date));
+}
+
 function mondayOf(days: number): number {
   return days - weekday(days) + 1;
 }
@@ -47,6 +52,14 @@ function dayInMonth(index: number, dayOfMonth: number): DateOnly {
   return new Date(Date.UTC(year, month, Math.min(dayOfMonth, lastDay))).toISOString().slice(0, 10);
 }
 
+/** The day in `days` closest to `target`, the later one on a tie. */
+function nearest(days: number[], target: number): number {
+  return days.reduce((best, day) => {
+    const closer = Math.abs(day - target) - Math.abs(best - target);
+    return closer < 0 || (closer === 0 && day > best) ? day : best;
+  });
+}
+
 /** `n` mod `m`, never negative. */
 function mod(n: number, m: number): number {
   return ((n % m) + m) % m;
@@ -56,10 +69,17 @@ function mod(n: number, m: number): number {
 export function nextDueDate(recurrence: Recurrence, { dueDate, today }: { dueDate: DateOnly | null; today: DateOnly }): DateOnly {
   const { every } = recurrence;
   if (recurrence.anchor === "completion") {
-    // N periods on from the completion's period, on the schedule's first day in that period.
+    // The schedule day nearest to N periods after completion, the later one on a tie.
     if (recurrence.unit === "day") return fromDays(toDays(today) + every);
-    if (recurrence.unit === "month") return dayInMonth(monthIndex(today) + every, recurrence.dayOfMonth);
-    return fromDays(mondayOf(toDays(today)) + 7 * every + Math.min(...recurrence.weekdays) - 1);
+    if (recurrence.unit === "month") {
+      const target = toDays(dayInMonth(monthIndex(today) + every, Number(today.slice(8, 10))));
+      const month = monthIndex(fromDays(target));
+      const candidates = [month - 1, month, month + 1].map((m) => toDays(dayInMonth(m, recurrence.dayOfMonth)));
+      return fromDays(nearest(candidates, target));
+    }
+    const target = toDays(today) + 7 * every;
+    const candidates = [-3, -2, -1, 0, 1, 2, 3].map((offset) => target + offset);
+    return fromDays(nearest(candidates.filter((day) => recurrence.weekdays.includes(weekday(day))), target));
   }
 
   // The schedule is anchored on the Due date. The next date is after both today and that Due date, so missed

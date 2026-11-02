@@ -106,6 +106,31 @@ describe("Recurring Chores (contract, real Postgres)", () => {
     expect((await ada.getQueue(group.id)).chores).toHaveLength(1);
   });
 
+  it("refuses to Undo after the created Occurrence was skipped, since its replacement is open", async () => {
+    const { ada, group } = await setup();
+    const { chore } = await ada.addChore(group.id, { title: "Bins", recurrence: weekly });
+    const { next } = await ada.completeChore(group.id, chore.id);
+    const skipped = await ada.deleteChore(group.id, next!.id);
+    await expect(ada.undoCompleteChore(group.id, chore.id)).rejects.toMatchObject({ code: "conflict", status: 409 });
+    expect((await ada.getQueue(group.id)).chores).toEqual([skipped.next]);
+  });
+
+  it("still completes when a client sends no body, as before `today` existed", async () => {
+    app = await createTestApp();
+    const email = "ada@example.com";
+    await app.client.requestCode({ email });
+    const { token } = await app.client.verifyCode({ email, code: app.lastCode(email), transport: "bearer" });
+    const ada = app.clientWithToken(token);
+    const { group } = await ada.createGroup({ name: "Flat 4" });
+    const { chore } = await ada.addChore(group.id, { title: "Bins" });
+    const res = await app.rawFetch(`/groups/${group.id}/chores/${chore.id}/complete`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    expect((await ada.getQueue(group.id)).chores).toEqual([]);
+  });
+
   it("applies schedule edits to future Occurrences only", async () => {
     const { ada, group } = await setup();
     const { chore } = await ada.addChore(group.id, { title: "Bins", dueDate: "2030-01-03", recurrence: weekly });

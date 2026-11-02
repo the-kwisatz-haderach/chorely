@@ -48,6 +48,12 @@ export async function parseBody<S extends z.ZodTypeAny>(req: Request, schema: S)
   return parsed.data;
 }
 
+/** Like `parseBody`, but an empty body counts as `{}`, for endpoints that took no body when they were added. */
+export async function parseOptionalBody<S extends z.ZodTypeAny>(req: Request, schema: S): Promise<z.output<S>> {
+  const text = await req.text();
+  return parseBody(new Request(req.url, { method: req.method, body: text || "{}" }), schema);
+}
+
 /** Turns thrown `AppError`s into responses; anything else becomes a 500 without leaking details. */
 export async function handle(fn: () => Promise<Response>): Promise<Response> {
   try {

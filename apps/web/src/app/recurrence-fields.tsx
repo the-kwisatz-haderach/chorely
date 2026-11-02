@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { type MemberDto, type RecurrenceBody, type RecurrenceDto } from "@chorely/api-client";
-import { type Weekday } from "@chorely/domain";
+import { weekdayOf, type Weekday } from "@chorely/domain";
 import { SegmentedControl } from "../ui";
 import { MemberOptions } from "./chore-fields";
 import { todayLocal } from "./today";
@@ -9,11 +9,6 @@ type Unit = RecurrenceDto["unit"];
 
 const UNITS: Record<Unit, string> = { day: "days", week: "weeks", month: "months" };
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-
-/** The ISO weekday (1 is Monday) of a `YYYY-MM-DD` date. */
-function weekdayOf(date: string): Weekday {
-  return (((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7) + 1) as Weekday;
-}
 
 /**
  * A Chore's schedule: Repeats (none, days, weeks or months) and, once it repeats, every N, the weekdays or day of the

@@ -101,6 +101,12 @@ async function withRecurrence<R extends { recurrenceId: string | null }>(
   return rows.map(({ recurrenceId, ...row }) => ({ ...row, recurrence: (recurrenceId && byId.get(recurrenceId)) || null }));
 }
 
+/** `withRecurrence` for one row. */
+async function oneWithRecurrence<R extends { recurrenceId: string | null }>(db: Tx | MemberContext["db"], row: R) {
+  const [dto] = await withRecurrence(db, [row]);
+  return dto!;
+}
+
 function toRecurrenceDto(r: typeof recurrences.$inferSelect): RecurrenceDto {
   const common = { every: r.every, anchor: r.anchor, assigneeId: r.assigneeId };
   if (r.unit === "week") return { unit: "week", weekdays: (r.weekdays ?? []) as Weekday[], ...common };
@@ -108,7 +114,7 @@ function toRecurrenceDto(r: typeof recurrences.$inferSelect): RecurrenceDto {
   return { unit: "day", ...common };
 }
 
-function recurrenceValues(r: RecurrenceDto) {
+function recurrenceColumns(r: RecurrenceDto) {
   return {
     unit: r.unit,
     every: r.every,
@@ -123,7 +129,7 @@ function recurrenceValues(r: RecurrenceDto) {
 async function insertRecurrence(tx: Tx, ctx: MemberContext, recurrence: RecurrenceDto): Promise<string> {
   if (recurrence.assigneeId) await requireAssignee(tx, ctx, recurrence.assigneeId);
   const id = newId();
-  await tx.insert(recurrences).values({ id, groupId: ctx.groupId, ...recurrenceValues(recurrence) });
+  await tx.insert(recurrences).values({ id, groupId: ctx.groupId, ...recurrenceColumns(recurrence) });
   return id;
 }
 
@@ -143,17 +149,17 @@ function localToday(ctx: MemberContext, today: string | undefined): string {
 /**
  * Creates the next Occurrence after `previous` was completed or skipped: same title and note, the next Due date,
  * the series' fixed Assignee (or none), placed by the usual Due-date seeding with no memory of the old Position.
- * `completedId` links it to the completion that created it, so Undo can remove it.
+ * One created by completing `previous` links back to it, so undoing that completion can remove it.
  */
 async function createNextOccurrence(
   tx: Tx,
   ctx: MemberContext,
   previous: ChoreRow & { recurrenceId: string },
   today: string,
-  completedId: string | null,
+  createdBy: "completion" | "skip",
 ): Promise<ChoreDto> {
   const [row] = await tx.select().from(recurrences).where(eq(recurrences.id, previous.recurrenceId));
-  if (!row) throw new Error("An Occurrence points at a missing Recurrence");
+  if (!row) throw new Error("An Occurrence points at a missing schedule");
   const recurrence = toRecurrenceDto(row);
   const dueDate = nextDueDate(recurrence, { dueDate: previous.dueDate, today });
   const next = {
@@ -166,7 +172,7 @@ async function createNextOccurrence(
   };
   await tx
     .insert(chores)
-    .values({ ...next, groupId: ctx.groupId, recurrenceId: previous.recurrenceId, previousOccurrenceId: completedId });
+    .values({ ...next, groupId: ctx.groupId, recurrenceId: previous.recurrenceId, previousOccurrenceId: createdBy === "completion" ? previous.id : null });
   return { ...next, recurrence };
 }
 
@@ -213,8 +219,8 @@ async function changeAssignee(
     const chore = await requireOpenChore(tx, ctx, choreId);
     const assigneeId = await change(tx, chore);
     await tx.update(chores).set({ assigneeId }).where(eq(chores.id, choreId));
-    const [dto] = await withRecurrence(tx, [{ ...chore, assigneeId }]);
-    return { chore: dto!, revision: group.revision };
+    const dto = await oneWithRecurrence(tx, { ...chore, assigneeId });
+    return { chore: dto, revision: group.revision };
   });
 }
 
@@ -277,7 +283,7 @@ export async function updateChore(ctx: MemberContext, choreId: string, input: Up
       recurrenceId = null;
     } else if (input.recurrence && recurrenceId) {
       if (input.recurrence.assigneeId) await requireAssignee(tx, ctx, input.recurrence.assigneeId);
-      await tx.update(recurrences).set(recurrenceValues(input.recurrence)).where(eq(recurrences.id, recurrenceId));
+      await tx.update(recurrences).set(recurrenceColumns(input.recurrence)).where(eq(recurrences.id, recurrenceId));
     } else if (input.recurrence) {
       recurrenceId = await insertRecurrence(tx, ctx, input.recurrence);
     }
@@ -290,8 +296,8 @@ export async function updateChore(ctx: MemberContext, choreId: string, input: Up
       ...(recurrenceId !== chore.recurrenceId && { recurrenceId }),
     };
     if (Object.keys(changes).length > 0) await tx.update(chores).set(changes).where(eq(chores.id, choreId));
-    const [dto] = await withRecurrence(tx, [{ ...chore, ...changes }]);
-    return { chore: dto!, revision: group.revision };
+    const dto = await oneWithRecurrence(tx, { ...chore, ...changes });
+    return { chore: dto, revision: group.revision };
   });
 }
 
@@ -384,8 +390,8 @@ export async function moveChore(ctx: MemberContext, choreId: string, input: Move
     if (position === undefined) throw queueChanged();
 
     await tx.update(chores).set({ position }).where(eq(chores.id, choreId));
-    const [dto] = await withRecurrence(tx, [{ ...chore, position }]);
-    return { chore: dto!, revision: group.revision };
+    const dto = await oneWithRecurrence(tx, { ...chore, position });
+    return { chore: dto, revision: group.revision };
   });
 }
 
@@ -411,7 +417,7 @@ export async function deleteChore(
     if (chore.recurrenceId && parsed.data.stopRepeating) {
       await tx.delete(recurrences).where(eq(recurrences.id, chore.recurrenceId));
     } else if (chore.recurrenceId) {
-      next = await createNextOccurrence(tx, ctx, { ...chore, recurrenceId: chore.recurrenceId }, today, null);
+      next = await createNextOccurrence(tx, ctx, { ...chore, recurrenceId: chore.recurrenceId }, today, "skip");
     }
     return { revision: group.revision, next };
   });
@@ -453,16 +459,16 @@ export async function completeChore(
         .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId)));
       throw existing ? alreadyDone() : choreNotFound();
     }
-    const next = row.recurrenceId ? await createNextOccurrence(tx, ctx, { ...row, recurrenceId: row.recurrenceId }, today, row.id) : null;
-    const [done] = await withRecurrence(tx, [toDoneDto(row)]);
-    return { chore: done!, next, revision: group.revision };
+    const next = row.recurrenceId ? await createNextOccurrence(tx, ctx, { ...row, recurrenceId: row.recurrenceId }, today, "completion") : null;
+    const done = await oneWithRecurrence(tx, toDoneDto(row));
+    return { chore: done, next, revision: group.revision };
   });
 }
 
 /**
  * Reopens a completed Chore at its retained Position. There is no time limit here; the Undo window is client-side.
- * The Occurrence its completion created is deleted first, so the series keeps one open Occurrence; if that one is
- * done too, the Undo is a `conflict`.
+ * The Occurrence its completion created is deleted first, so the series keeps one open Occurrence. If that one is
+ * done too, or was skipped so another is open, the Undo is a `conflict`.
  */
 export async function undoCompleteChore(ctx: MemberContext, choreId: string): Promise<ChoreResponse> {
   if (!choreIdSchema.safeParse(choreId).success) throw choreNotFound();
@@ -476,6 +482,19 @@ export async function undoCompleteChore(ctx: MemberContext, choreId: string): Pr
     if (created?.completedAt) throw new AppError("conflict", "The next Occurrence is already done, so this cannot be undone");
     if (created) await tx.delete(chores).where(eq(chores.id, created.id));
 
+    // The created Occurrence may have been skipped, so its replacement is the series' open one now.
+    const [series] = await tx
+      .select({ id: chores.id })
+      .from(chores)
+      .where(
+        and(
+          eq(chores.groupId, ctx.groupId),
+          isNull(chores.completedAt),
+          sql`${chores.recurrenceId} = (select ${chores.recurrenceId} from ${chores} where ${chores.id} = ${choreId})`,
+        ),
+      );
+    if (series) throw new AppError("conflict", "A later Occurrence of this Chore is already in the Queue, so this cannot be undone");
+
     const [chore] = await tx
       .update(chores)
       .set({ completedAt: null, completedById: null })
@@ -488,8 +507,8 @@ export async function undoCompleteChore(ctx: MemberContext, choreId: string): Pr
         .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId)));
       throw existing ? new AppError("conflict", "This Chore is not done") : choreNotFound();
     }
-    const [dto] = await withRecurrence(tx, [chore]);
-    return { chore: dto!, revision: group.revision };
+    const dto = await oneWithRecurrence(tx, chore);
+    return { chore: dto, revision: group.revision };
   });
 }
 

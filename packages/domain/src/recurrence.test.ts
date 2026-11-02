@@ -74,7 +74,22 @@ describe("nextDueDate, completion anchor", () => {
     expect(nextDueDate(every10, { dueDate: "2030-02-01", today: "2030-01-25" })).toBe("2030-02-04");
   });
 
-  it("lands on the first chosen weekday of the week N weeks after the completion week", () => {
+  it("lands on the chosen weekday nearest to N weeks after completion, never just a day later", () => {
+    // Weekly on Monday, completed on Sunday 13 Jan: a week on is Sunday 20 Jan, and Monday 21 Jan is nearest.
+    const mondays = { unit: "week", every: 1, weekdays: [1], anchor: "completion" } as const;
+    expect(nextDueDate(mondays, { dueDate: null, today: "2030-01-13" })).toBe("2030-01-21");
+    // Monday and Thursday, completed on Wednesday 9 Jan: a week on is Wednesday 16 Jan, a tie, so the later Thursday.
+    const twice = { unit: "week", every: 1, weekdays: [1, 4], anchor: "completion" } as const;
+    expect(nextDueDate(twice, { dueDate: null, today: "2030-01-09" })).toBe("2030-01-17");
+  });
+
+  it("lands on the chosen day nearest to N months after completion", () => {
+    // Monthly on the 1st, completed on 31 Jan: a month on is 28 Feb, and 1 Mar is nearest.
+    const firsts = { unit: "month", every: 1, dayOfMonth: 1, anchor: "completion" } as const;
+    expect(nextDueDate(firsts, { dueDate: null, today: "2030-01-31" })).toBe("2030-03-01");
+  });
+
+  it("lands on a chosen weekday about N weeks after completion", () => {
     // Completed on Tuesday 8 Jan: the next week starts Monday 14 Jan, two weeks on starts Monday 21 Jan.
     const weekly = { unit: "week", every: 1, weekdays: [4, 1], anchor: "completion" } as const;
     expect(nextDueDate(weekly, { dueDate: "2030-01-10", today: "2030-01-08" })).toBe("2030-01-14");

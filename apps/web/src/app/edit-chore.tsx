@@ -8,6 +8,7 @@ import { api } from "./api";
 import { ChoreFields, choreFieldValues } from "./chore-fields";
 import { errorMessage } from "./error-message";
 import { RecurrenceFields, recurrenceValue } from "./recurrence-fields";
+import styles from "./edit-chore.module.css";
 import { todayLocal } from "./today";
 
 /**
@@ -108,26 +109,30 @@ export function EditChore({ groupId, choreId }: { groupId: string; choreId: stri
         Delete Chore
       </button>
       <Dialog open={confirmingDelete} onClose={() => setConfirmingDelete(false)} title={`Delete "${chore.title}"?`}>
-        <p>Delete just this Occurrence, so the next one is added now, or delete it and stop repeating. This cannot be undone.</p>
-        <Button onClick={() => setConfirmingDelete(false)}>Cancel</Button>
-        <Button
-          variant="danger"
-          onClick={() => {
-            setConfirmingDelete(false);
-            void remove(false);
-          }}
-        >
-          Delete this one
-        </Button>
-        <Button
-          variant="danger"
-          onClick={() => {
-            setConfirmingDelete(false);
-            void remove(true);
-          }}
-        >
-          Delete and stop repeating
-        </Button>
+        <p className={styles.muted}>
+          Delete just this Occurrence, so the next one is added now, or delete it and stop repeating. This cannot be undone.
+        </p>
+        <div className={styles.dialogActions}>
+          <Button onClick={() => setConfirmingDelete(false)}>Cancel</Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setConfirmingDelete(false);
+              void remove(false);
+            }}
+          >
+            Delete this one
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setConfirmingDelete(false);
+              void remove(true);
+            }}
+          >
+            Delete and stop repeating
+          </Button>
+        </div>
       </Dialog>
       {error && <p role="alert">{error}</p>}
     </>

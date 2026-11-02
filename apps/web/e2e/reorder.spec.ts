@@ -51,10 +51,22 @@ test("Reorder the Queue by drag and by the Move menu, and it sticks after a relo
   for (const title of ["Bins", "Dishes", "Laundry", "Plants"]) await addChore(page, title);
   await expect.poll(() => order(page)).toEqual(["Bins", "Dishes", "Laundry", "Plants"]);
 
-  // Menu: to the front becomes Next up, to the back goes last.
+  // Menu: to the front becomes Next up at once, before the server has even answered.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/move", async (route) => {
+    await held;
+    await route.continue();
+  });
   await page.getByLabel("Move Plants").click();
   await page.getByRole("button", { name: "Move to front" }).click();
   await expect.poll(() => order(page)).toEqual(["Plants", "Bins", "Dishes", "Laundry"]);
+  expect(saved).toHaveLength(0);
+  release();
+  await page.unroute("**/move");
+  await expect.poll(() => saved.length, { timeout: 15_000 }).toBe(1);
+
+  // To the back goes last.
   await page.getByLabel("Move Bins").click();
   await page.getByRole("button", { name: "Move to back" }).click();
   await expect.poll(() => order(page)).toEqual(["Plants", "Dishes", "Laundry", "Bins"]);
@@ -69,6 +81,16 @@ test("Reorder the Queue by drag and by the Move menu, and it sticks after a relo
   // The order showed instantly; once the server has answered all four moves, it survives a reload.
   await expect.poll(() => saved.length, { timeout: 15_000 }).toBe(4);
   expect(saved.every((ok) => ok)).toBe(true);
+
+  // A move the server rejects as a conflict is undone by a refetch, with a message.
+  await page.route("**/move", (route) =>
+    route.fulfill({ status: 409, json: { code: "conflict", message: "The Queue changed while you were moving this Chore" } }),
+  );
+  await page.getByLabel("Move Dishes").click();
+  await page.getByRole("button", { name: "Move to front" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "has been refreshed" })).toBeVisible();
+  await expect.poll(() => order(page)).toEqual(["Bins", "Plants", "Laundry", "Dishes"]);
+  await page.unroute("**/move");
 
   await page.reload();
   await expect.poll(() => order(page)).toEqual(["Bins", "Plants", "Laundry", "Dishes"]);

@@ -51,11 +51,11 @@ describe("Reorder the Queue (contract, real Postgres)", () => {
     expect(await order()).toBe("ABDC");
   });
 
-  it("places a Chore right next to a single anchor, not at the end", async () => {
+  it("places a Chore right beside the surviving anchor, not at the end", async () => {
     const { ada, group, ids, order } = await setup();
-    await ada.moveChore(group.id, ids.D, { afterId: ids.A });
+    await ada.moveChore(group.id, ids.D, { afterId: ids.A, beforeId: unknown });
     expect(await order()).toBe("ADBC");
-    await ada.moveChore(group.id, ids.A, { beforeId: ids.C });
+    await ada.moveChore(group.id, ids.A, { afterId: unknown, beforeId: ids.C });
     expect(await order()).toBe("DBAC");
   });
 
@@ -78,7 +78,7 @@ describe("Reorder the Queue (contract, real Postgres)", () => {
     expect(await order()).toBe("CD");
   });
 
-  it("answers 409 when no anchor is left or the anchors are out of order, and changes nothing", async () => {
+  it("answers 409 only when both anchors are gone, and changes nothing", async () => {
     const { ada, group, ids, order } = await setup();
     await ada.deleteChore(group.id, ids.A);
     await ada.deleteChore(group.id, ids.B);
@@ -86,13 +86,32 @@ describe("Reorder the Queue (contract, real Postgres)", () => {
       code: "conflict",
       status: 409,
     });
-    await expect(ada.moveChore(group.id, ids.C, { beforeId: unknown })).rejects.toMatchObject({ code: "conflict" });
+    await expect(ada.moveChore(group.id, ids.C, { afterId: unknown, beforeId: unknown })).rejects.toMatchObject({
+      code: "conflict",
+    });
     await expect(ada.moveChore(group.id, ids.C, { afterId: ids.C })).rejects.toMatchObject({ code: "validation_failed" });
-    const { chores } = await ada.addChore(group.id, { title: "E" }).then(() => ada.getQueue(group.id));
-    const e = chores.at(-1)!.id;
-    await expect(ada.moveChore(group.id, ids.C, { afterId: e, beforeId: ids.D })).rejects.toMatchObject({ code: "conflict" });
-    expect(await order()).toBe("CDE");
-    expect((await ada.getQueue(group.id)).revision).toBe(7);
+    expect(await order()).toBe("CD");
+    expect((await ada.getQueue(group.id)).revision).toBe(6);
+  });
+
+  it("lands right after the first anchor when another move put the anchors out of order", async () => {
+    const { ada, bob, group, ids, order } = await setup();
+    // Ada drags D between A and B, but Bob has just sent A to the back.
+    await bob.moveChore(group.id, ids.A, { afterId: ids.D });
+    await ada.moveChore(group.id, ids.D, { afterId: ids.A, beforeId: ids.B });
+    expect(await order()).toBe("BCAD");
+  });
+
+  it("moves to the very front or back even if the Queue changed meanwhile", async () => {
+    const { ada, bob, group, ids, order } = await setup();
+    await bob.addChore(group.id, { title: "E", placement: "front" });
+    await bob.addChore(group.id, { title: "F" });
+    await ada.moveChore(group.id, ids.C, { beforeId: ids.A });
+    await ada.moveChore(group.id, ids.B, { afterId: ids.D });
+    expect(await order()).toBe("CEADFB");
+    await ada.deleteChore(group.id, ids.A);
+    await ada.moveChore(group.id, ids.D, { beforeId: ids.A });
+    expect(await order()).toBe("DCEFB");
   });
 
   it("rejects moving a completed Chore with 409 and an unknown one with not_found", async () => {
@@ -113,7 +132,9 @@ describe("Reorder the Queue (contract, real Postgres)", () => {
     const carl = await signedIn("carl@example.com", "Carl");
     const elsewhere = await carl.createGroup({ name: "Elsewhere" });
     const { chore: theirs } = await carl.addChore(elsewhere.group.id, { title: "Theirs" });
-    await expect(ada.moveChore(group.id, ids.A, { afterId: theirs.id })).rejects.toMatchObject({ code: "conflict" });
+    await expect(ada.moveChore(group.id, ids.A, { afterId: theirs.id, beforeId: theirs.id })).rejects.toMatchObject({
+      code: "conflict",
+    });
     expect(await order()).toBe("ABCD");
   });
 

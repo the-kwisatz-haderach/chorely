@@ -80,7 +80,7 @@ export interface ApiClient {
   deleteChore(groupId: string, choreId: string): Promise<DeleteChoreResponse>;
   /**
    * Moves an open Chore between anchors and returns it with its new `position`. A hard-deleted anchor falls back
-   * to the other one; with no usable anchor, or a Chore that is already done, it rejects with `conflict`.
+   * to the other one; with neither anchor left, or a Chore that is already done, it rejects with `conflict`.
    */
   moveChore(groupId: string, choreId: string, body: MoveChoreBody): Promise<ChoreResponse>;
   /** Takes an unassigned Chore. Rejects with `conflict` (409) if someone else holds it. */

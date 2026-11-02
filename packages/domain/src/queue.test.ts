@@ -89,8 +89,8 @@ describe("positionBetween", () => {
     let low = "a0";
     const high = "a1";
     for (let i = 0; i < 200; i++) low = positionBetween(low, high)!;
-    let high2 = "a1";
-    for (let i = 0; i < 200; i++) high2 = positionBetween("a0", high2)!;
-    expect(Math.max(low.length, high2.length)).toBeLessThan(60);
+    let lowHigh = "a1";
+    for (let i = 0; i < 200; i++) lowHigh = positionBetween("a0", lowHigh)!;
+    expect(Math.max(low.length, lowHigh.length)).toBeLessThan(60);
   });
 });

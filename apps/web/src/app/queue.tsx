@@ -94,22 +94,17 @@ function ChoreActions({ groupId, chore, members, myMemberId, disabled, onClaim, 
       </select>
       <details style={{ display: "inline-block" }}>
         <summary aria-label={`Move ${chore.title}`}>Move</summary>
-        <button
-          onClick={(e) => {
-            closeMenu(e);
-            onMove("front");
-          }}
-        >
-          Move to front
-        </button>
-        <button
-          onClick={(e) => {
-            closeMenu(e);
-            onMove("back");
-          }}
-        >
-          Move to back
-        </button>
+        {(["front", "back"] as const).map((to) => (
+          <button
+            key={to}
+            onClick={(e) => {
+              closeMenu(e);
+              onMove(to);
+            }}
+          >
+            Move to {to}
+          </button>
+        ))}
       </details>
     </span>
   );
@@ -181,6 +176,7 @@ export function Queue({
     }
   }
 
+  const queue = chores ?? [];
   const myMemberId = members.find((m) => m.accountId === accountId)?.id;
 
   /** Runs a Claim or assignment, then refetches. A 409 shows `lostRace` when given, else the server's message. */
@@ -208,10 +204,10 @@ export function Queue({
    * server generates. On a conflict (or any failure) the Queue is refetched.
    */
   async function move(chore: ChoreDto, index: number) {
-    const others = (chores ?? []).filter((c) => c.id !== chore.id);
+    const others = queue.filter((c) => c.id !== chore.id);
     const after = others[index - 1];
     const before = others[index];
-    if ((chores ?? [])[index]?.id === chore.id || (!after && !before)) return;
+    if (queue[index]?.id === chore.id || (!after && !before)) return;
 
     const seq = ++moveSeq.current;
     const position = positionBetween(after?.position ?? null, before?.position ?? null) ?? chore.position;
@@ -262,10 +258,9 @@ export function Queue({
       },
       onDrop: (e: DragEvent) => {
         e.preventDefault();
-        const list = chores ?? [];
-        const from = list.findIndex((c) => c.id === dragged.current);
-        const to = list.findIndex((c) => c.id === chore.id);
-        const moved = list[from];
+        const from = queue.findIndex((c) => c.id === dragged.current);
+        const to = queue.findIndex((c) => c.id === chore.id);
+        const moved = queue[from];
         dragged.current = undefined;
         if (!moved || from === to) return;
         void move(moved, to);
@@ -307,11 +302,11 @@ export function Queue({
       onClaim={() => void runAndRefetch(() => api.claimChore(groupId, chore.id), LOST_CLAIM)}
       onUnclaim={() => void runAndRefetch(() => api.unclaimChore(groupId, chore.id))}
       onAssign={(assigneeId) => void runAndRefetch(() => api.assignChore(groupId, chore.id, { assigneeId }))}
-      onMove={(to) => void move(chore, to === "front" ? 0 : (chores ?? []).length - 1)}
+      onMove={(to) => void move(chore, to === "front" ? 0 : queue.length - 1)}
     />
   );
 
-  const [next, ...rest] = chores ?? [];
+  const [next, ...rest] = queue;
 
   return (
     <section aria-label="Queue">

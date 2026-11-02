@@ -136,7 +136,7 @@
   align-items: center;
   justify-content: center;
   align-self: stretch;
-  width: 32px;
+  width: var(--target-min);
   min-height: var(--target-min);
   color: var(--color-text-muted);
   cursor: grab;
@@ -255,7 +255,8 @@
   right: 0;
   height: 3px;
   border-radius: 2px;
-  background: var(--color-primary);
+  /* Not --color-primary: the green is under 3:1 against the dark background. */
+  background: var(--color-text);
 }
 
 .row[data-drop="before"]::before,

@@ -29,7 +29,13 @@ export function Menu({
 
   return (
     <>
-      <button ref={triggerRef} type="button" className={[styles.trigger, triggerClassName].filter(Boolean).join(" ")} popoverTarget={id} aria-label={label}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={[styles.trigger, triggerClassName].filter(Boolean).join(" ")}
+        popoverTarget={id}
+        aria-label={label}
+      >
         {trigger}
       </button>
       <div id={id} popover="auto" className={styles.menu} onBeforeToggle={place}>

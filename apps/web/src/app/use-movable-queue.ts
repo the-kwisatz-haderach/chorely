@@ -29,8 +29,9 @@ export function useMovableQueue(groupId: string, setError: (message: string | un
   // Moves are sent one at a time, in order: each one's anchors assume the moves before it have landed.
   const moveChain = useRef<Promise<void>>(Promise.resolve());
   const dragged = useRef<string>(undefined);
-  const [dragging, setDragging] = useState<string>();
-  const [over, setOver] = useState<string>();
+  // The Chore shown lifted, and the one the insertion line is drawn against.
+  const [liftedId, setLiftedId] = useState<string>();
+  const [dropTargetId, setDropTargetId] = useState<string>();
 
   /** Shows a fetched Queue, keeping the provisional key of any Chore whose move is still in flight. */
   function showQueue(fetched: ChoreDto[]) {
@@ -88,23 +89,28 @@ export function useMovableQueue(groupId: string, setError: (message: string | un
    * the dragged Chore will land; `handle` goes on its drag handle.
    */
   function dragProps(chore: ChoreDto) {
-    const from = queue.findIndex((c) => c.id === dragging);
+    const from = queue.findIndex((c) => c.id === liftedId);
     const at = queue.findIndex((c) => c.id === chore.id);
-    const drop = dragging && over === chore.id && from !== at ? (at > from ? "after" : "before") : undefined;
+    const drop = liftedId && dropTargetId === chore.id && from !== at ? (at > from ? "after" : "before") : undefined;
     const endDrag = () => {
       dragged.current = undefined;
-      setDragging(undefined);
-      setOver(undefined);
+      setLiftedId(undefined);
+      setDropTargetId(undefined);
     };
     return {
       row: {
         "data-drag-row": "",
-        "data-dragging": dragging === chore.id || undefined,
+        "data-dragging": liftedId === chore.id || undefined,
         "data-drop": drop,
         onDragOver: (e: DragEvent) => {
           if (!dragged.current) return;
           e.preventDefault();
-          setOver(chore.id);
+          setDropTargetId(chore.id);
+        },
+        // Off every row, the line goes: a drop there does nothing.
+        onDragLeave: (e: DragEvent<HTMLElement>) => {
+          if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
+          setDropTargetId((id) => (id === chore.id ? undefined : id));
         },
         onDrop: (e: DragEvent) => {
           e.preventDefault();
@@ -129,7 +135,7 @@ export function useMovableQueue(groupId: string, setError: (message: string | un
           }
           // Lifted on the next frame: changing the source row during dragstart can cancel the drag in some browsers.
           requestAnimationFrame(() => {
-            if (dragged.current === chore.id) setDragging(chore.id);
+            if (dragged.current === chore.id) setLiftedId(chore.id);
           });
         },
         onDragEnd: endDrag,

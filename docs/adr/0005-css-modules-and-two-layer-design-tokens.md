@@ -38,7 +38,7 @@ Re-check this table when a palette value or a semantic mapping changes, and add 
 ## Where things live
 
 - `apps/web/src/ui/`: `tokens.css`, `base.css` (the reset, the `:focus-visible` ring, 44px minimum touch targets, `prefers-reduced-motion` turning motion off, and the single centred column of about 480px) and the shared primitives: Button (primary, secondary, ghost, danger), Dialog (`<dialog>`), Sheet (bottom sheet on `<dialog>`), Menu (Popover API), Toast, EmptyState and ErrorBanner. Each primitive has its own CSS Module.
-- `apps/web/src/app/`: screens. A screen's styles go in a CSS Module beside it (`queue.tsx` and `queue.module.css`). The app shell's top bar (`top-bar.tsx`) shows the Group name and icon links to `/groups/{groupId}/done` and `/groups/{groupId}/settings`; the Queue at `/` is the home screen.
+- `apps/web/src/app/`: screens. A screen's styles go in a CSS Module beside it (`queue.tsx` and `queue.module.css`). The app shell's top bar (`top-bar.tsx`) shows the Group name and icon links to `/groups/{groupId}/done` and `/groups/{groupId}/settings`; the Queue at `/` is the home screen. The Queue's add sheet hands off to a full-page add screen at `/groups/{groupId}/chores/new` ("More options"), beside the edit screen at `/groups/{groupId}/chores/{choreId}/edit`.
 - Icons come from `lucide-react`. The viewport uses `viewport-fit=cover`, and anything pinned to an edge pads by `env(safe-area-inset-*)`.
 
 ## Consequences

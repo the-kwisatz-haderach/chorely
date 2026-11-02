@@ -12,6 +12,7 @@ test("Invite link: share, join through sign-in, replace, paste on first run", as
   await signIn(ada, `e2e-ada-${stamp}@example.com`, "Ada");
   await ada.getByLabel("Group name").fill("Flat 4");
   await ada.getByRole("button", { name: "Create Group" }).click();
+  await ada.getByRole("link", { name: "Group settings" }).click();
   await ada.getByRole("button", { name: "Create Invite link" }).click();
   const firstLink = await ada.getByLabel("Invite link").inputValue();
   expect(firstLink).toMatch(/\/join\/[\w-]{22}$/);
@@ -24,6 +25,7 @@ test("Invite link: share, join through sign-in, replace, paste on first run", as
   await bob.goto(firstLink);
   await signIn(bob, `e2e-bob-${stamp}@example.com`, "Bob");
   await expect(bob.getByRole("heading", { name: "Flat 4" })).toBeVisible();
+  await bob.getByRole("link", { name: "Group settings" }).click();
   await expect(bob.getByRole("list").filter({ hasText: "Ada" })).toContainText("Bob");
   // Any Member can copy the same link, not just the one who made it.
   await expect(bob.getByLabel("Invite link")).toHaveValue(firstLink);

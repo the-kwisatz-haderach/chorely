@@ -1,21 +1,29 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { type AccountDto } from "@chorely/api-client";
 import { api } from "./api";
 import { errorMessage } from "./error-message";
 import { EditChore } from "./edit-chore";
-import { GroupScreen } from "./group-screen";
+import { GroupHome } from "./group-home";
+import { GroupPage, type GroupView } from "./group-page";
 import { JoinInvite } from "./join-invite";
+import { TopBar } from "./top-bar";
 
 type Step = { name: "loading" } | { name: "email" } | { name: "code"; email: string } | { name: "signed-in"; account: AccountDto };
 
+/** Signs the person in, then shows the page's screen. Screens inside a Group bring their own top bar. */
 export function AuthFlow({
   inviteToken,
   editChore,
+  groupPage,
+  intro,
 }: {
   inviteToken?: string;
   editChore?: { groupId: string; choreId: string };
+  groupPage?: { groupId: string; view: GroupView };
+  /** Shown under the wordmark until the person is signed in. */
+  intro?: ReactNode;
 }) {
   const [step, setStep] = useState<Step>({ name: "loading" });
   const [error, setError] = useState<string>();
@@ -42,10 +50,22 @@ export function AuthFlow({
 
   const field = (e: FormEvent<HTMLFormElement>, name: string) => String(new FormData(e.currentTarget).get(name) ?? "");
 
-  if (step.name === "loading") return <p>Loading…</p>;
+  if (step.name === "loading") {
+    return (
+      <main>
+        <p>Loading…</p>
+      </main>
+    );
+  }
+
+  const signedIn = step.name === "signed-in" && step.account.displayName;
+  // Screens inside a Group show the Group's top bar instead of the wordmark.
+  const ownTopBar = signedIn && !inviteToken && !editChore;
 
   return (
-    <>
+    <main>
+      {!ownTopBar && <TopBar title="Chorely" />}
+      {!signedIn && intro}
       {step.name === "email" && (
         <form
           onSubmit={(e) => {
@@ -108,14 +128,16 @@ export function AuthFlow({
 
       {step.name === "signed-in" && step.account.displayName && (
         <>
-          <p>Signed in as {step.account.displayName}</p>
           {inviteToken ? (
             <JoinInvite token={inviteToken} />
           ) : editChore ? (
             <EditChore {...editChore} />
+          ) : groupPage ? (
+            <GroupPage {...groupPage} />
           ) : (
-            <GroupScreen accountId={step.account.id} />
+            <GroupHome accountId={step.account.id} />
           )}
+          <p>Signed in as {step.account.displayName}</p>
           <button
             disabled={busy}
             onClick={() =>
@@ -131,6 +153,6 @@ export function AuthFlow({
       )}
 
       {error && <p role="alert">{error}</p>}
-    </>
+    </main>
   );
 }

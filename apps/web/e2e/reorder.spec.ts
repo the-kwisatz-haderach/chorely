@@ -41,11 +41,12 @@ test("Reorder the Queue by drag and by the Move menu, and it sticks after a relo
   await page.getByRole("button", { name: "Move to back" }).click();
   await expect.poll(() => order(page)).toEqual(["Plants", "Dishes", "Laundry", "Bins"]);
 
-  // Drag: dropping on a Chore lands below it going down, above it going up.
+  // Drag: dropping on a Chore lands below it going down, above it going up. Rows are grabbed by their title.
   const row = (title: string) => page.getByRole("listitem").filter({ hasText: title });
-  await row("Dishes").dragTo(row("Bins"));
+  const grab = (title: string) => row(title).locator("strong").first();
+  await grab("Dishes").dragTo(row("Bins"));
   await expect.poll(() => order(page)).toEqual(["Plants", "Laundry", "Bins", "Dishes"]);
-  await row("Bins").dragTo(page.getByLabel("Next up"));
+  await grab("Bins").dragTo(page.getByLabel("Next up"));
   await expect.poll(() => order(page)).toEqual(["Bins", "Plants", "Laundry", "Dishes"]);
 
   // The order showed instantly; once the server has answered all four moves, it survives a reload.

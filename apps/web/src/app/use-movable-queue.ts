@@ -84,7 +84,6 @@ export function useMovableQueue(groupId: string, setError: (message: string | un
   function dragProps(chore: ChoreDto) {
     return {
       draggable: true,
-      style: { cursor: "grab" },
       onDragStart: (e: DragEvent) => {
         dragged.current = chore.id;
         e.dataTransfer.effectAllowed = "move";

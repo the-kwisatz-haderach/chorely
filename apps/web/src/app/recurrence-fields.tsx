@@ -3,6 +3,7 @@ import { type MemberDto, type RecurrenceBody, type RecurrenceDto } from "@chorel
 import { weekdayOf, type Weekday } from "@chorely/domain";
 import { SegmentedControl } from "../ui";
 import { MemberOptions } from "./chore-fields";
+import styles from "./chore-form.module.css";
 import { todayLocal } from "./today";
 
 type Unit = RecurrenceDto["unit"];
@@ -19,10 +20,13 @@ export function RecurrenceFields({
   recurrence,
   dueDate,
   members,
+  hint,
 }: {
   recurrence: RecurrenceDto | null;
   dueDate: string | null;
   members: MemberDto[];
+  /** A muted line at the end of the section. */
+  hint?: string;
 }) {
   const [unit, setUnit] = useState<Unit | "">(recurrence?.unit ?? "");
   const start = dueDate ?? todayLocal();
@@ -31,11 +35,11 @@ export function RecurrenceFields({
   const assignee = members.some((m) => m.id === recurrence?.assigneeId) ? (recurrence?.assigneeId ?? "") : "";
 
   return (
-    <fieldset>
-      <legend>Repeat</legend>
-      <label>
+    <fieldset className={styles.section}>
+      <legend className={styles.sectionHeading}>Repeat</legend>
+      <label className={styles.field}>
         Repeats
-        <select name="repeatUnit" value={unit} onChange={(e) => setUnit(e.target.value as Unit | "")}>
+        <select name="repeatUnit" className={styles.control} value={unit} onChange={(e) => setUnit(e.target.value as Unit | "")}>
           <option value="">Does not repeat</option>
           {Object.entries(UNITS).map(([value, label]) => (
             <option key={value} value={value}>
@@ -46,15 +50,24 @@ export function RecurrenceFields({
       </label>
       {unit && (
         <>
-          <label>
-            Every <input name="repeatEvery" type="number" min={1} max={unit === "day" ? 365 : unit === "week" ? 52 : 24} defaultValue={recurrence?.every ?? 1} required />{" "}
+          <label className={styles.inlineField}>
+            Every
+            <input
+              name="repeatEvery"
+              type="number"
+              className={styles.control}
+              min={1}
+              max={unit === "day" ? 365 : unit === "week" ? 52 : 24}
+              defaultValue={recurrence?.every ?? 1}
+              required
+            />
             {UNITS[unit]}
           </label>
           {unit === "week" && (
-            <fieldset>
-              <legend>On</legend>
+            <fieldset className={styles.weekdays}>
+              <legend className={styles.weekdaysLegend}>On</legend>
               {WEEKDAYS.map((label, i) => (
-                <label key={label}>
+                <label key={label} className={styles.weekday}>
                   <input type="checkbox" name="repeatWeekday" value={i + 1} defaultChecked={weekdays.includes((i + 1) as Weekday)} />
                   {label}
                 </label>
@@ -62,8 +75,9 @@ export function RecurrenceFields({
             </fieldset>
           )}
           {unit === "month" && (
-            <label>
-              On day <input name="repeatDayOfMonth" type="number" min={1} max={31} defaultValue={dayOfMonth} required />
+            <label className={styles.inlineField}>
+              On day
+              <input name="repeatDayOfMonth" type="number" className={styles.control} min={1} max={31} defaultValue={dayOfMonth} required />
             </label>
           )}
           <SegmentedControl
@@ -74,15 +88,17 @@ export function RecurrenceFields({
               { value: "completion", label: "After completion" },
             ]}
             defaultValue={recurrence?.anchor ?? "calendar"}
+            stacked
           />
-          <label>
+          <label className={styles.field}>
             Assign each new Occurrence to
-            <select name="repeatAssigneeId" defaultValue={assignee}>
+            <select name="repeatAssigneeId" className={styles.control} defaultValue={assignee}>
               <MemberOptions members={members} />
             </select>
           </label>
         </>
       )}
+      {hint && <p className={styles.hint}>{hint}</p>}
     </fieldset>
   );
 }

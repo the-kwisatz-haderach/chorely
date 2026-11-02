@@ -4,8 +4,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { type MemberDto } from "@chorely/api-client";
 import { type Placement } from "@chorely/domain";
+import { Button, buttonClassName, ErrorBanner } from "../ui";
 import { api } from "./api";
 import { ChoreFields, PlacementToggle, addChoreBody } from "./chore-fields";
+import styles from "./chore-form.module.css";
 import { errorMessage } from "./error-message";
 import { RecurrenceFields, recurrenceValue } from "./recurrence-fields";
 
@@ -43,17 +45,25 @@ export function NewChore({ groupId, title, placement }: { groupId: string; title
   }
 
   return (
-    <>
-      <h2>Add a Chore</h2>
-      <form aria-label="Add a Chore" onSubmit={(e) => void onSubmit(e)}>
+    <section className={styles.screen}>
+      <h2 className={styles.title}>Add a Chore</h2>
+      <form aria-label="Add a Chore" className={styles.card} onSubmit={(e) => void onSubmit(e)}>
         <ChoreFields chore={{ title }} members={members} />
+        <div className={styles.field}>
+          <PlacementToggle defaultValue={placement} stacked />
+          <p className={styles.hint}>On Back, a Chore with a Due date is placed by its date instead.</p>
+        </div>
         <RecurrenceFields recurrence={null} dueDate={null} members={members} />
-        <PlacementToggle defaultValue={placement} />
-        <p>On Back, a Chore with a Due date is placed by its date instead.</p>
-        <button disabled={busy}>Add</button>
-        <a href="/">Cancel</a>
+        {error && <ErrorBanner message={error} className={styles.banner} />}
+        <div className={styles.actions}>
+          <Button type="submit" variant="primary" disabled={busy}>
+            Add
+          </Button>
+          <a href="/" className={buttonClassName()}>
+            Cancel
+          </a>
+        </div>
       </form>
-      {error && <p role="alert">{error}</p>}
-    </>
+    </section>
   );
 }

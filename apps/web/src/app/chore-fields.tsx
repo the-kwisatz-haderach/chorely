@@ -1,14 +1,16 @@
 import { type AddChoreBody, type ChoreDto, type MemberDto } from "@chorely/api-client";
 import { type Placement } from "@chorely/domain";
+import { useId } from "react";
 import { SegmentedControl } from "../ui";
+import styles from "./chore-form.module.css";
 
 /** Reads a query or form value as a Placement: anything but "front" is the back. */
 export function parsePlacement(value: unknown): Placement {
   return value === "front" ? "front" : "back";
 }
 
-/** The add form's Front/Back toggle, as a radio pair named `placement`. */
-export function PlacementToggle({ defaultValue = "back" }: { defaultValue?: Placement }) {
+/** The add form's Front/Back toggle, as a radio pair named `placement`. `stacked` is the full add screen's look. */
+export function PlacementToggle({ defaultValue = "back", stacked }: { defaultValue?: Placement; stacked?: boolean }) {
   return (
     <SegmentedControl
       legend="Add to"
@@ -18,6 +20,7 @@ export function PlacementToggle({ defaultValue = "back" }: { defaultValue?: Plac
         { value: "back", label: "Back" },
       ]}
       defaultValue={defaultValue}
+      stacked={stacked}
     />
   );
 }
@@ -40,25 +43,44 @@ export function MemberOptions({ members }: { members: MemberDto[] }) {
 export function ChoreFields({
   chore,
   members,
+  dueDateHint,
 }: {
   chore?: Partial<Pick<ChoreDto, "title" | "note" | "dueDate" | "assigneeId">>;
   members: MemberDto[];
+  /** A muted line under the Due date, linked to it as its description. */
+  dueDateHint?: string;
 }) {
+  const dueDateId = useId();
   const assignee = members.some((m) => m.id === chore?.assigneeId) ? (chore?.assigneeId ?? "") : "";
   return (
     <>
-      <label>
-        Title <input name="title" maxLength={100} defaultValue={chore?.title} required />
+      <label className={styles.field}>
+        Title
+        <input name="title" className={styles.control} maxLength={100} defaultValue={chore?.title} required />
       </label>
-      <label>
-        Note <textarea name="note" maxLength={1000} defaultValue={chore?.note} />
+      <label className={styles.field}>
+        Note
+        <textarea name="note" className={styles.control} maxLength={1000} defaultValue={chore?.note} />
       </label>
-      <label>
-        Due date <input name="dueDate" type="date" defaultValue={chore?.dueDate ?? ""} />
-      </label>
-      <label>
+      <div className={styles.field}>
+        <label htmlFor={dueDateId}>Due date</label>
+        <input
+          id={dueDateId}
+          name="dueDate"
+          type="date"
+          className={styles.control}
+          defaultValue={chore?.dueDate ?? ""}
+          aria-describedby={dueDateHint ? `${dueDateId}-hint` : undefined}
+        />
+        {dueDateHint && (
+          <p id={`${dueDateId}-hint`} className={styles.hint}>
+            {dueDateHint}
+          </p>
+        )}
+      </div>
+      <label className={styles.field}>
         Assignee
-        <select name="assigneeId" defaultValue={assignee}>
+        <select name="assigneeId" className={styles.control} defaultValue={assignee}>
           <MemberOptions members={members} />
         </select>
       </label>

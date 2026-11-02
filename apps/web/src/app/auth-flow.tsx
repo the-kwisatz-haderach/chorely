@@ -14,6 +14,7 @@ import { GroupHome } from "./group-home";
 import { GroupPage, type GroupView } from "./group-page";
 import { JoinInvite } from "./join-invite";
 import { NewChore } from "./new-chore";
+import { OfflineNotice } from "./offline-notice";
 import { TopBar } from "./top-bar";
 
 type Step = { name: "loading" } | { name: "email" } | { name: "code"; email: string } | { name: "signed-in"; account: AccountDto };
@@ -62,6 +63,7 @@ export function AuthFlow({
     return (
       <main>
         <Wordmark />
+        <OfflineNotice className={entryStyles.offline} />
         <Loading />
       </main>
     );
@@ -76,7 +78,14 @@ export function AuthFlow({
 
   return (
     <main>
-      {isEntryScreen ? <Wordmark /> : !ownTopBar && <TopBar title="Chorely" />}
+      {isEntryScreen ? (
+        <>
+          <Wordmark />
+          <OfflineNotice className={entryStyles.offline} />
+        </>
+      ) : (
+        !ownTopBar && <TopBar title="Chorely" />
+      )}
 
       {step.name === "email" && (
         <EntryCard>

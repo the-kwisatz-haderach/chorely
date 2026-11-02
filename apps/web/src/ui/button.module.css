@@ -3,10 +3,13 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
+  /* Set here, not left to base.css, so a link given these classes matches a button. */
+  min-height: var(--target-min);
   padding: var(--space-2) var(--space-4);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
 }
 

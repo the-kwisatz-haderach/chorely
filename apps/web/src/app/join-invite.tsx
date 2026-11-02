@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { buttonClassName, ErrorBanner, Loading } from "../ui";
 import { api } from "./api";
+import { EntryCard } from "./entry";
+import styles from "./entry.module.css";
 import { errorMessage } from "./error-message";
 
 type State = { name: "joining" } | { name: "failed"; message: string };
@@ -17,11 +20,14 @@ export function JoinInvite({ token }: { token: string }) {
       .catch((err: unknown) => setState({ name: "failed", message: errorMessage(err) }));
   }, [token]);
 
-  if (state.name === "joining") return <p>Joining the Group…</p>;
+  if (state.name === "joining") return <Loading>Joining the Group…</Loading>;
   return (
-    <>
-      <p role="alert">{state.message}</p>
-      <a href="/">Go to Chorely</a>
-    </>
+    <EntryCard>
+      <h2 className={styles.heading}>Can&apos;t join this Group</h2>
+      <ErrorBanner message={state.message} />
+      <a href="/" className={buttonClassName({ variant: "primary", className: styles.primary })}>
+        Go to Chorely
+      </a>
+    </EntryCard>
   );
 }

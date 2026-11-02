@@ -190,7 +190,7 @@ export function AuthFlow({
           ) : newChore ? (
             <NewChore {...newChore} />
           ) : groupPage ? (
-            <GroupPage {...groupPage} />
+            <GroupPage {...groupPage} account={step.account} />
           ) : (
             <GroupHome accountId={step.account.id} />
           )}

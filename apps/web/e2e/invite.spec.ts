@@ -30,8 +30,15 @@ test("Invite link: share, join through sign-in, replace, paste on first run", as
   // Any Member can copy the same link, not just the one who made it.
   await expect(bob.getByLabel("Invite link")).toHaveValue(firstLink);
 
+  // Replacing asks first; cancelling keeps the link.
+  await ada.getByRole("button", { name: "Replace Invite link" }).click();
+  await ada.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(ada.getByRole("dialog")).toBeHidden();
+  await expect(ada.getByLabel("Invite link")).toHaveValue(firstLink);
+
   // Ada replaces the link; the old one now explains itself.
   await ada.getByRole("button", { name: "Replace Invite link" }).click();
+  await ada.getByRole("dialog").getByRole("button", { name: "Replace link" }).click();
   await expect(ada.getByLabel("Invite link")).not.toHaveValue(firstLink);
   const secondLink = await ada.getByLabel("Invite link").inputValue();
 

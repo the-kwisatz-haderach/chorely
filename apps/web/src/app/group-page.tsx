@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type GroupDetailResponse } from "@chorely/api-client";
+import { type AccountDto, type GroupDetailResponse } from "@chorely/api-client";
+import { ErrorBanner, Loading } from "../ui";
 import { api } from "./api";
 import { DoneList } from "./done-list";
 import { errorMessage } from "./error-message";
@@ -11,7 +12,7 @@ import { TopBar } from "./top-bar";
 export type GroupView = "done" | "settings";
 
 /** A page of the app shell other than the Queue: the Group's Done list or its Group screen. */
-export function GroupPage({ groupId, view }: { groupId: string; view: GroupView }) {
+export function GroupPage({ groupId, view, account }: { groupId: string; view: GroupView; account: AccountDto }) {
   const [detail, setDetail] = useState<GroupDetailResponse>();
   const [error, setError] = useState<string>();
 
@@ -22,14 +23,14 @@ export function GroupPage({ groupId, view }: { groupId: string; view: GroupView 
       .catch((err: unknown) => setError(errorMessage(err)));
   }, [groupId]);
 
-  if (!detail) return error ? <p role="alert">{error}</p> : <p>Loading…</p>;
+  if (!detail) return error ? <ErrorBanner message={error} /> : <Loading />;
   return (
     <>
       <TopBar title={detail.group.name} groupId={detail.group.id} />
       {view === "done" ? (
         <DoneList groupId={groupId} members={detail.members} />
       ) : (
-        <GroupSettings detail={detail} onChange={setDetail} />
+        <GroupSettings detail={detail} account={account} onChange={setDetail} />
       )}
     </>
   );

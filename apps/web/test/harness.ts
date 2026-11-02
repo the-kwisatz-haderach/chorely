@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { count } from "drizzle-orm";
 import { createApiClient, type ApiClient, type FetchLike } from "@chorely/api-client";
 import { createDb } from "../src/server/db/client";
-import { accounts, loginCodes, rateLimits, sessions } from "../src/server/db/schema";
+import { accounts, inviteLinks, loginCodes, rateLimits, sessions } from "../src/server/db/schema";
 import { setDeps } from "../src/server/deps";
 import type { Email } from "../src/server/email";
 import { newId } from "../src/server/ids";
@@ -62,6 +62,7 @@ export interface TestApp {
   /** Raw stored values, to check secrets are not persisted in the clear. */
   storedCodeHashes(): Promise<string[]>;
   storedSessionKeys(): Promise<string[]>;
+  storedInviteHashes(): Promise<string[]>;
   tableCounts(): Promise<{ loginCodes: number; sessions: number; rateLimits: number }>;
   insertAccount(email: string): Promise<void>;
   countAccounts(): Promise<number>;
@@ -135,6 +136,9 @@ export async function createTestApp(): Promise<TestApp> {
     },
     async storedSessionKeys() {
       return (await db.select({ h: sessions.tokenHash }).from(sessions)).map((r) => r.h);
+    },
+    async storedInviteHashes() {
+      return (await db.select({ h: inviteLinks.tokenHash }).from(inviteLinks)).map((r) => r.h);
     },
     async tableCounts() {
       const n = async (table: typeof loginCodes | typeof sessions | typeof rateLimits) =>

@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, type GroupDetailResponse } from "@chorely/api-client";
 import { api } from "./api";
+import { inviteUrl, tokenFromPasted } from "./invite";
 import { Queue } from "./queue";
 
 type State = { name: "loading" } | { name: "none" } | { name: "ready"; detail: GroupDetailResponse };
@@ -16,6 +17,8 @@ export function GroupScreen() {
   const [state, setState] = useState<State>({ name: "loading" });
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [invite, setInvite] = useState<string>();
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     api
@@ -39,7 +42,22 @@ export function GroupScreen() {
     }
   }
 
-  const name = (e: FormEvent<HTMLFormElement>) => String(new FormData(e.currentTarget).get("name") ?? "");
+  const field = (e: FormEvent<HTMLFormElement>, key: string) => String(new FormData(e.currentTarget).get(key) ?? "");
+  const name = (e: FormEvent<HTMLFormElement>) => field(e, "name");
+
+  async function share(url: string) {
+    // Web Share where the device has it (phones); otherwise the person copies the link.
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Join my Group on Chorely", url });
+      } catch {
+        // Dismissing the share sheet is not an error.
+      }
+      return;
+    }
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+  }
 
   return (
     <section>
@@ -59,6 +77,25 @@ export function GroupScreen() {
             Group name <input name="name" maxLength={60} required />
           </label>
           <button disabled={busy}>Create Group</button>
+        </form>
+      )}
+
+      {state.name === "none" && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const token = tokenFromPasted(field(e, "invite"));
+            void run(async () => {
+              const { group } = await api.joinGroup({ token });
+              setState({ name: "ready", detail: await api.getGroup(group.id) });
+            });
+          }}
+        >
+          <h2>Or join a Group</h2>
+          <label>
+            Paste an Invite link <input name="invite" required />
+          </label>
+          <button disabled={busy}>Join Group</button>
         </form>
       )}
 
@@ -82,6 +119,33 @@ export function GroupScreen() {
             </label>
             <button disabled={busy}>Rename</button>
           </form>
+          <h3>Invite people</h3>
+          {invite ? (
+            <>
+              <p>
+                Share this link. Anyone who opens it can join the Group.
+              </p>
+              <input readOnly aria-label="Invite link" value={inviteUrl(window.location.origin, invite)} />
+              <button onClick={() => void run(() => share(inviteUrl(window.location.origin, invite)))}>
+                {typeof navigator.share === "function" ? "Share" : "Copy"}
+              </button>
+              {copied && <span role="status"> Copied</span>}
+            </>
+          ) : (
+            <p>Make an Invite link to add people. Making a new one stops any link shared before.</p>
+          )}
+          <button
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const { token } = await api.createInviteLink(state.detail.group.id);
+                setCopied(false);
+                setInvite(token);
+              })
+            }
+          >
+            {invite ? "Replace Invite link" : "Create Invite link"}
+          </button>
           <h3>Members</h3>
           <ul>
             {state.detail.members.map((m) => (

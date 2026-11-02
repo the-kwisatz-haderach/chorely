@@ -68,6 +68,19 @@ export const members = pgTable(
   (t) => [unique("members_group_account_unique").on(t.groupId, t.accountId), index("members_account_id_idx").on(t.accountId)],
 );
 
+/** A Group's one Invite link. Only the hash of the token is stored; replacing the link overwrites the hash. */
+export const inviteLinks = pgTable(
+  "invite_links",
+  {
+    groupId: uuid("group_id")
+      .primaryKey()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("invite_links_token_hash_unique").on(t.tokenHash)],
+);
+
 /**
  * `position` is a fractional-index key (ADR 0002). The migration gives it `COLLATE "C"` by hand because
  * Drizzle cannot express it; the Queue is ordered by `(position, id)`.

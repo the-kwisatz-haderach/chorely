@@ -29,6 +29,13 @@
       "when": 1793605755351,
       "tag": "0003_slimy_proteus",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793607222767,
+      "tag": "0004_easy_starbolt",
+      "breakpoints": true
     }
   ]
 }

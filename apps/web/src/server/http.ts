@@ -11,6 +11,7 @@ const STATUS: Record<ErrorCode, number> = {
   invalid_code: 400,
   too_many_attempts: 429,
   rate_limited: 429,
+  invalid_invite: 404,
   network_error: 500,
   invalid_response: 500,
 };

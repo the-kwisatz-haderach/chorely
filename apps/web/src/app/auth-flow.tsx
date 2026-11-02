@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, type AccountDto } from "@chorely/api-client";
 import { api } from "./api";
 import { GroupScreen } from "./group-screen";
+import { JoinInvite } from "./join-invite";
 
 type Step = { name: "loading" } | { name: "email" } | { name: "code"; email: string } | { name: "signed-in"; account: AccountDto };
 
@@ -11,7 +12,7 @@ function message(err: unknown): string {
   return err instanceof ApiError ? err.message : "Something went wrong. Try again.";
 }
 
-export function AuthFlow() {
+export function AuthFlow({ inviteToken }: { inviteToken?: string }) {
   const [step, setStep] = useState<Step>({ name: "loading" });
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -104,7 +105,7 @@ export function AuthFlow() {
       {step.name === "signed-in" && step.account.displayName && (
         <>
           <p>Signed in as {step.account.displayName}</p>
-          <GroupScreen />
+          {inviteToken ? <JoinInvite token={inviteToken} /> : <GroupScreen />}
           <button
             disabled={busy}
             onClick={() =>

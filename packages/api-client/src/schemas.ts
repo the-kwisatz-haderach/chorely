@@ -159,6 +159,10 @@ export type AddChoreInput = z.output<typeof addChoreBodySchema>;
 export const queueResponseSchema = z.object({ chores: z.array(choreSchema), revision: z.number().int() });
 export type QueueResponse = z.infer<typeof queueResponseSchema>;
 
+/** The Group revision alone: it moves on every change to the Queue, so clients poll it and refetch on a change. */
+export const revisionResponseSchema = z.object({ revision: z.number().int() });
+export type RevisionResponse = z.infer<typeof revisionResponseSchema>;
+
 export const addChoreResponseSchema = z.object({ chore: choreSchema, revision: z.number().int() });
 export type AddChoreResponse = z.infer<typeof addChoreResponseSchema>;
 

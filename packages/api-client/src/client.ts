@@ -16,6 +16,7 @@ import {
   meResponseSchema,
   okResponseSchema,
   queueResponseSchema,
+  revisionResponseSchema,
   verifyCodeResponseSchema,
   type AddChoreBody,
   type AddChoreResponse,
@@ -42,6 +43,7 @@ import {
   type OkResponse,
   type QueueResponse,
   type RenameGroupBody,
+  type RevisionResponse,
   type RequestCodeBody,
   type SetDisplayNameBody,
   type UpdateChoreBody,
@@ -88,6 +90,8 @@ export interface ApiClient {
    */
   leaveGroup(groupId: string, body: LeaveGroupBody): Promise<LeaveGroupResponse>;
   getQueue(groupId: string): Promise<QueueResponse>;
+  /** The Group revision, which changes whenever the Queue does. Cheap enough to poll. */
+  getRevision(groupId: string): Promise<RevisionResponse>;
   addChore(groupId: string, body: AddChoreBody): Promise<AddChoreResponse>;
   /** Edits any field of an open Chore without moving it. Rejects with `conflict` if it is already done. */
   updateChore(groupId: string, choreId: string, body: UpdateChoreBody): Promise<ChoreResponse>;
@@ -186,6 +190,7 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     leaveGroup: (groupId, body) =>
       request(`/groups/${encodeURIComponent(groupId)}/leave`, leaveGroupResponseSchema, { method: "POST", body }),
     getQueue: (groupId) => request(`/groups/${encodeURIComponent(groupId)}/chores`, queueResponseSchema),
+    getRevision: (groupId) => request(`/groups/${encodeURIComponent(groupId)}/revision`, revisionResponseSchema),
     addChore: (groupId, body) =>
       request(`/groups/${encodeURIComponent(groupId)}/chores`, addChoreResponseSchema, { method: "POST", body }),
     updateChore: (groupId, choreId, body) =>

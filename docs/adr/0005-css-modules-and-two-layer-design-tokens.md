@@ -46,4 +46,4 @@ Re-check this table when a palette value or a semantic mapping changes, and add 
 - ESLint bans the JSX `style` prop in `apps/web/src`. Stylelint bans hex colours, named colours, colour functions and `var(--palette-*)` outside `tokens.css`. Both run in `pnpm lint`, which PR CI runs. Rule tests are in `tooling/styling-lint.test.ts`.
 - Spreading a `style` object into JSX gets past the ESLint rule, so props helpers must not return one. The only imperative style writes are custom properties for values known only at runtime, such as the Menu's position.
 - Primitives use semantic tokens only, so a new theme or a palette change touches only `tokens.css`.
-- Styling never renames accessible roles or names: Playwright selects by them, and there are no screenshot tests. Each UI PR carries light- and dark-mode screenshots for human review instead.
+- Styling never renames accessible roles or names: Playwright selects by them, and there are no screenshot tests.

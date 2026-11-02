@@ -4,7 +4,18 @@ import { useId, useRef, type ButtonHTMLAttributes, type ReactNode, type ToggleEv
 import styles from "./menu.module.css";
 
 /** A trigger button and a Popover API menu of `MenuItem`s, placed under the trigger's right edge. */
-export function Menu({ label, trigger, children }: { label: string; trigger: ReactNode; children: ReactNode }) {
+export function Menu({
+  label,
+  trigger,
+  triggerClassName,
+  children,
+}: {
+  label: string;
+  trigger: ReactNode;
+  /** Added to the trigger's own class, for placing or recolouring it on a screen. */
+  triggerClassName?: string;
+  children: ReactNode;
+}) {
   const id = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -18,7 +29,7 @@ export function Menu({ label, trigger, children }: { label: string; trigger: Rea
 
   return (
     <>
-      <button ref={triggerRef} type="button" className={styles.trigger} popoverTarget={id} aria-label={label}>
+      <button ref={triggerRef} type="button" className={[styles.trigger, triggerClassName].filter(Boolean).join(" ")} popoverTarget={id} aria-label={label}>
         {trigger}
       </button>
       <div id={id} popover="auto" className={styles.menu} onBeforeToggle={place}>

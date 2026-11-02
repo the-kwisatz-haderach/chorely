@@ -41,16 +41,28 @@ test("Reorder the Queue by drag and by the Move menu, and it sticks after a relo
   await page.getByRole("button", { name: "Move to back" }).click();
   await expect.poll(() => order(page)).toEqual(["Plants", "Dishes", "Laundry", "Bins"]);
 
-  // Drag: dropping on a Chore lands below it going down, above it going up. Rows are grabbed by their title.
+  // Drag: dropping on a Chore lands below it going down, above it going up. Rows are grabbed by their handle.
   const row = (title: string) => page.getByRole("listitem").filter({ hasText: title });
-  const grab = (title: string) => row(title).locator("strong").first();
+  const grab = (title: string) => row(title).getByTitle("Drag to reorder");
   await grab("Dishes").dragTo(row("Bins"));
   await expect.poll(() => order(page)).toEqual(["Plants", "Laundry", "Bins", "Dishes"]);
   await grab("Bins").dragTo(page.getByLabel("Next up"));
   await expect.poll(() => order(page)).toEqual(["Bins", "Plants", "Laundry", "Dishes"]);
 
-  // The order showed instantly; once the server has answered all four moves, it survives a reload.
-  await expect.poll(() => saved.length, { timeout: 15_000 }).toBe(4);
+  // The "⋯" menu works by keyboard: open it with Enter, Tab into it, and pick an item with Enter.
+  const byKeyboard = async (title: string, tabs: number) => {
+    await page.getByLabel(`Move ${title}`).focus();
+    await page.keyboard.press("Enter");
+    for (let i = 0; i < tabs; i++) await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
+  };
+  await byKeyboard("Dishes", 1);
+  await expect.poll(() => order(page)).toEqual(["Dishes", "Bins", "Plants", "Laundry"]);
+  await byKeyboard("Dishes", 2);
+  await expect.poll(() => order(page)).toEqual(["Bins", "Plants", "Laundry", "Dishes"]);
+
+  // The order showed instantly; once the server has answered all six moves, it survives a reload.
+  await expect.poll(() => saved.length, { timeout: 15_000 }).toBe(6);
   expect(saved.every((ok) => ok)).toBe(true);
 
   // A move the server rejects as a conflict is undone by a refetch, with a message.

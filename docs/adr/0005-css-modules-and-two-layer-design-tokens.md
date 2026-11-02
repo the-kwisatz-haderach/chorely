@@ -13,7 +13,7 @@ Beside the layers are the shared scales: a 4px spacing scale (`--space-*`), radi
 
 The light theme is the prototype palette (`prototype/queue-screen`): a cream background, deep green primary and red danger. The prototype's muted grey failed contrast, so it is darkened. The dark theme keeps the same character: a pine-tinted near-black, the same green fill, a lighter red and an amber focus ring.
 
-`--color-primary` is a fill only, always under `--color-on-primary` text. It is never a text colour, because the green fails as text on the dark background. Inverted surfaces such as the toast use `--color-text` as the background and `--color-bg` as the text, which reuses the text/background pair.
+`--color-primary` is a fill, under `--color-on-primary` text. The only place it is a text colour is on a `--color-on-primary` fill, such as the Queue's white Complete button, which is the same pair inverted. It is never text on `--color-bg` or `--color-surface`, because the green fails as text on the dark background. On a `--color-primary` fill, such as the Next-up hero, everything is `--color-on-primary`: muted text and danger red both fail contrast on the green, so the hero's Overdue keeps its icon and word but drops the red. Inverted surfaces such as the toast use `--color-text` as the background and `--color-bg` as the text, which reuses the text/background pair.
 
 ## Checked contrast pairs (WCAG 2.2 AA)
 
@@ -26,6 +26,7 @@ Text needs 4.5:1. The focus ring is a non-text indicator and needs 3:1 against e
 | `text-muted` on `bg` | 5.99 | 7.95 |
 | `text-muted` on `surface` | 6.76 | 6.98 |
 | `on-primary` on `primary` | 5.99 | 5.99 |
+| `primary` on `on-primary` (Complete button) | 5.99 | 5.99 |
 | `danger` on `bg` | 5.79 | 8.00 |
 | `danger` on `surface` | 6.54 | 7.02 |
 | `focus` against `bg` | 16.33 | 10.83 |

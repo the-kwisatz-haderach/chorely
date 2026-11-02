@@ -37,7 +37,7 @@
   --color-surface: var(--palette-white);
   --color-text: var(--palette-ink-900);
   --color-text-muted: var(--palette-stone-600);
-  /* A fill only, always under --color-on-primary text; never a text colour. */
+  /* A fill under --color-on-primary text; text only on an --color-on-primary fill (ADR 0005). */
   --color-primary: var(--palette-green-700);
   --color-on-primary: var(--palette-white);
   --color-danger: var(--palette-red-700);

@@ -29,6 +29,8 @@ export function useMovableQueue(groupId: string, setError: (message: string | un
   // Moves are sent one at a time, in order: each one's anchors assume the moves before it have landed.
   const moveChain = useRef<Promise<void>>(Promise.resolve());
   const dragged = useRef<string>(undefined);
+  const [dragging, setDragging] = useState<string>();
+  const [over, setOver] = useState<string>();
 
   /** Shows a fetched Queue, keeping the provisional key of any Chore whose move is still in flight. */
   function showQueue(fetched: ChoreDto[]) {
@@ -80,29 +82,57 @@ export function useMovableQueue(groupId: string, setError: (message: string | un
     void move(chore, to === "front" ? 0 : queue.length - 1);
   }
 
-  /** Drag and drop: dropping on a Chore lands below it when dragging down, above it when dragging up. */
+  /**
+   * Drag and drop from a row's handle: dropping on a Chore lands below it when dragging down, above it when dragging
+   * up. `row` goes on the Chore's row and marks it `data-dragging` while lifted and `data-drop="before"|"after"` where
+   * the dragged Chore will land; `handle` goes on its drag handle.
+   */
   function dragProps(chore: ChoreDto) {
+    const from = queue.findIndex((c) => c.id === dragging);
+    const at = queue.findIndex((c) => c.id === chore.id);
+    const drop = dragging && over === chore.id && from !== at ? (at > from ? "after" : "before") : undefined;
+    const endDrag = () => {
+      dragged.current = undefined;
+      setDragging(undefined);
+      setOver(undefined);
+    };
     return {
-      draggable: true,
-      onDragStart: (e: DragEvent) => {
-        dragged.current = chore.id;
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", chore.id);
+      row: {
+        "data-drag-row": "",
+        "data-dragging": dragging === chore.id || undefined,
+        "data-drop": drop,
+        onDragOver: (e: DragEvent) => {
+          if (!dragged.current) return;
+          e.preventDefault();
+          setOver(chore.id);
+        },
+        onDrop: (e: DragEvent) => {
+          e.preventDefault();
+          const moved = queue.find((c) => c.id === dragged.current);
+          const to = queue.findIndex((c) => c.id === chore.id);
+          endDrag();
+          if (!moved || moved.id === chore.id) return;
+          void move(moved, to);
+        },
       },
-      onDragOver: (e: DragEvent) => {
-        if (dragged.current) e.preventDefault();
-      },
-      onDrop: (e: DragEvent) => {
-        e.preventDefault();
-        const from = queue.findIndex((c) => c.id === dragged.current);
-        const to = queue.findIndex((c) => c.id === chore.id);
-        const moved = queue[from];
-        dragged.current = undefined;
-        if (!moved || from === to) return;
-        void move(moved, to);
-      },
-      onDragEnd: () => {
-        dragged.current = undefined;
+      handle: {
+        draggable: true,
+        onDragStart: (e: DragEvent<HTMLElement>) => {
+          dragged.current = chore.id;
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", chore.id);
+          // The whole row is the drag image, held where the handle was grabbed.
+          const row = e.currentTarget.closest<HTMLElement>("[data-drag-row]");
+          if (row) {
+            const box = row.getBoundingClientRect();
+            e.dataTransfer.setDragImage(row, e.clientX - box.left, e.clientY - box.top);
+          }
+          // Lifted on the next frame: changing the source row during dragstart can cancel the drag in some browsers.
+          requestAnimationFrame(() => {
+            if (dragged.current === chore.id) setDragging(chore.id);
+          });
+        },
+        onDragEnd: endDrag,
       },
     };
   }

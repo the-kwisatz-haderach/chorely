@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { type ChoreDto, type MemberDto } from "@chorely/api-client";
 import { api } from "./api";
+import { ChoreFields, choreFieldValues } from "./chore-fields";
 import { errorMessage } from "./error-message";
 
 /** Full-page edit screen for one open Chore: change any field, or delete it after a confirm. */
@@ -47,15 +48,9 @@ export function EditChore({ groupId, choreId }: { groupId: string; choreId: stri
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const text = (key: string) => String(data.get(key) ?? "");
+    const body = choreFieldValues(e.currentTarget);
     void run(async () => {
-      await api.updateChore(groupId, choreId, {
-        title: text("title"),
-        note: text("note"),
-        dueDate: text("dueDate") || null,
-        assigneeId: text("assigneeId") || null,
-      });
+      await api.updateChore(groupId, choreId, body);
     });
   };
 
@@ -63,26 +58,7 @@ export function EditChore({ groupId, choreId }: { groupId: string; choreId: stri
     <>
       <h2>Edit Chore</h2>
       <form aria-label="Edit Chore" onSubmit={onSubmit}>
-        <label>
-          Title <input name="title" maxLength={100} defaultValue={chore.title} required />
-        </label>
-        <label>
-          Note <textarea name="note" maxLength={1000} defaultValue={chore.note} />
-        </label>
-        <label>
-          Due date <input name="dueDate" type="date" defaultValue={chore.dueDate ?? ""} />
-        </label>
-        <label>
-          Assignee
-          <select name="assigneeId" defaultValue={members.some((m) => m.id === chore.assigneeId) ? (chore.assigneeId ?? "") : ""}>
-            <option value="">Unassigned</option>
-            {members.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.displayName ?? "Unnamed"}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ChoreFields chore={chore} members={members} />
         <p>Changing the Due date does not move the Chore in the Queue.</p>
         <button disabled={busy}>Save</button>
         <a href="/">Cancel</a>

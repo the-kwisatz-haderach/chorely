@@ -5,10 +5,11 @@ import { defineConfig } from "@playwright/test";
 const port = 3100;
 /** The dev email transport writes sent emails here so the journey can read its sign-in code. */
 export const EMAIL_OUTBOX_DIR = join(tmpdir(), "chorely-e2e-outbox");
-const databaseUrl = process.env.DATABASE_URL ?? "postgres://chorely:chorely@localhost:5433/chorely";
+export const databaseUrl = process.env.DATABASE_URL ?? "postgres://chorely:chorely@localhost:5433/chorely";
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   use: { baseURL: `http://localhost:${port}` },
   webServer: {
     // CI builds first; locally the dev server is fine.

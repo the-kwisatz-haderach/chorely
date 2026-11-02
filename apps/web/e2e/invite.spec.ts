@@ -59,6 +59,16 @@ test("Invite link: share, join through sign-in, replace, paste on first run", as
   await cy.getByRole("button", { name: "Join Group" }).click();
   await expect(cy.getByRole("heading", { name: "Flat 4" })).toBeVisible();
 
+  // Someone already in another Group is told why they cannot join this one.
+  const dana = await (await browser.newContext()).newPage();
+  await dana.goto("/");
+  await signIn(dana, `e2e-dana-${stamp}@example.com`, "Dana");
+  await dana.getByLabel("Group name").fill("Office");
+  await dana.getByRole("button", { name: "Create Group" }).click();
+  await expect(dana.getByRole("heading", { name: "Office" })).toBeVisible();
+  await dana.goto(secondLink);
+  await expect(dana.getByText("You are already in a Group")).toBeVisible();
+
   // A Member opening their own Group's link just lands in the Group (blocking other Groups is in the contract tests).
   await bob.goto(secondLink);
   await expect(bob.getByRole("heading", { name: "Flat 4" })).toBeVisible();

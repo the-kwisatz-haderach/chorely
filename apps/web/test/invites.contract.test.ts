@@ -112,6 +112,7 @@ describe("Invite links (contract, real Postgres)", () => {
     const { token } = await ada.client.createInviteLink(group.id);
     const stored = await app.storedInviteHashes();
     expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatch(/^[0-9a-f]{64}$/);
     expect(stored[0]).not.toContain(token);
   });
 });

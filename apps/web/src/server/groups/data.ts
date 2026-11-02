@@ -1,7 +1,8 @@
 import { asc, eq, and, sql } from "drizzle-orm";
-import type { GroupDto, MemberDto } from "@chorely/api-client";
+import { inviteTokenSchema, type GroupDto, type MemberDto } from "@chorely/api-client";
+import { hashToken } from "../auth/hash";
 import type { Database } from "../db/client";
-import { accounts, groups, members } from "../db/schema";
+import { accounts, groups, inviteLinks, members } from "../db/schema";
 import { AppError } from "../http";
 import { newId } from "../ids";
 import type { MemberContext } from "./context";
@@ -36,15 +37,49 @@ export async function listGroupsFor(db: Database, accountId: string): Promise<Gr
     .orderBy(asc(members.createdAt));
 }
 
+type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Serialises work per Account so the one-Group-per-Account check cannot be raced. */
+async function lockAccount(tx: Tx, accountId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${accountId}))`);
+}
+
+async function accountGroupId(tx: Tx, accountId: string): Promise<string | undefined> {
+  const [row] = await tx.select({ groupId: members.groupId }).from(members).where(eq(members.accountId, accountId)).limit(1);
+  return row?.groupId;
+}
+
 /** Creates a Group and makes the Account its first Member. v1 allows one Group per Account. */
 export async function createGroup(db: Database, accountId: string, name: string): Promise<GroupDto> {
   return db.transaction(async (tx) => {
-    // Serialises concurrent creates by the same Account so the one-Group check cannot be raced.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${accountId}))`);
-    const [existing] = await tx.select({ id: members.id }).from(members).where(eq(members.accountId, accountId)).limit(1);
-    if (existing) throw new AppError("conflict", "You are already in a Group");
+    await lockAccount(tx, accountId);
+    if (await accountGroupId(tx, accountId)) throw new AppError("conflict", "You are already in a Group");
     const group = { id: newId(), name };
     await tx.insert(groups).values(group);
+    await tx.insert(members).values({ id: newId(), groupId: group.id, accountId });
+    return group;
+  });
+}
+
+function invalidInvite(): AppError {
+  return new AppError("invalid_invite", "This Invite link is not valid any more. Ask for a new one.");
+}
+
+/** Makes the Account a Member of the Group the token belongs to. v1 allows one Group per Account. */
+export async function joinWithToken(db: Database, accountId: string, token: string): Promise<GroupDto> {
+  if (!inviteTokenSchema.safeParse(token).success) throw invalidInvite();
+  return db.transaction(async (tx) => {
+    await lockAccount(tx, accountId);
+    const [group] = await tx
+      .select(groupColumns)
+      .from(inviteLinks)
+      .innerJoin(groups, eq(groups.id, inviteLinks.groupId))
+      .where(eq(inviteLinks.tokenHash, hashToken(token)));
+    if (!group) throw invalidInvite();
+
+    const current = await accountGroupId(tx, accountId);
+    if (current === group.id) return group;
+    if (current) throw new AppError("conflict", "You are already in a Group, so you can't join another yet");
     await tx.insert(members).values({ id: newId(), groupId: group.id, accountId });
     return group;
   });

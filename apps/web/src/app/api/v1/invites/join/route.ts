@@ -1,7 +1,7 @@
 import { joinGroupBodySchema, type GroupResponse } from "@chorely/api-client";
 import { requireAccount } from "@/server/auth/request";
 import { getDeps } from "@/server/deps";
-import { joinWithToken } from "@/server/groups/invites";
+import { joinWithToken } from "@/server/groups/data";
 import { handle, json, parseBody } from "@/server/http";
 
 export const dynamic = "force-dynamic";

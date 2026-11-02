@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiError } from "@chorely/api-client";
 import { api } from "./api";
+import { errorMessage } from "./error-message";
 
 type State = { name: "joining" } | { name: "failed"; message: string };
 
@@ -14,9 +14,7 @@ export function JoinInvite({ token }: { token: string }) {
     api
       .joinGroup({ token })
       .then(() => window.location.assign("/"))
-      .catch((err: unknown) =>
-        setState({ name: "failed", message: err instanceof ApiError ? err.message : "Something went wrong. Try again." }),
-      );
+      .catch((err: unknown) => setState({ name: "failed", message: errorMessage(err) }));
   }, [token]);
 
   if (state.name === "joining") return <p>Joining the Group…</p>;

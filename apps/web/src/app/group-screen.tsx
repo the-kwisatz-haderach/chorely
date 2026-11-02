@@ -1,23 +1,20 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { ApiError, type GroupDetailResponse } from "@chorely/api-client";
+import { type GroupDetailResponse } from "@chorely/api-client";
 import { api } from "./api";
+import { errorMessage } from "./error-message";
 import { inviteUrl, tokenFromPasted } from "./invite";
 import { Queue } from "./queue";
 
 type State = { name: "loading" } | { name: "none" } | { name: "ready"; detail: GroupDetailResponse };
-
-function message(err: unknown): string {
-  return err instanceof ApiError ? err.message : "Something went wrong. Try again.";
-}
 
 /** First-run screen when the Account has no Group, otherwise the Group's Members and its name. */
 export function GroupScreen() {
   const [state, setState] = useState<State>({ name: "loading" });
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [invite, setInvite] = useState<string>();
+  const [inviteToken, setInviteToken] = useState<string>();
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -27,7 +24,7 @@ export function GroupScreen() {
         const first = groups[0];
         setState(first ? { name: "ready", detail: await api.getGroup(first.id) } : { name: "none" });
       })
-      .catch((err: unknown) => setError(message(err)));
+      .catch((err: unknown) => setError(errorMessage(err)));
   }, []);
 
   async function run(action: () => Promise<void>) {
@@ -36,7 +33,7 @@ export function GroupScreen() {
     try {
       await action();
     } catch (err) {
-      setError(message(err));
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -45,18 +42,19 @@ export function GroupScreen() {
   const field = (e: FormEvent<HTMLFormElement>, key: string) => String(new FormData(e.currentTarget).get(key) ?? "");
   const name = (e: FormEvent<HTMLFormElement>) => field(e, "name");
 
-  async function share(url: string) {
-    // Web Share where the device has it (phones); otherwise the person copies the link.
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "Join my Group on Chorely", url });
-      } catch {
-        // Dismissing the share sheet is not an error.
-      }
-      return;
-    }
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  async function copy(url: string) {
     await navigator.clipboard.writeText(url);
     setCopied(true);
+  }
+
+  async function share(url: string) {
+    try {
+      await navigator.share({ title: "Join my Group on Chorely", url });
+    } catch {
+      // Dismissing the share sheet is not an error.
+    }
   }
 
   return (
@@ -120,15 +118,14 @@ export function GroupScreen() {
             <button disabled={busy}>Rename</button>
           </form>
           <h3>Invite people</h3>
-          {invite ? (
+          {inviteToken ? (
             <>
-              <p>
-                Share this link. Anyone who opens it can join the Group.
-              </p>
-              <input readOnly aria-label="Invite link" value={inviteUrl(window.location.origin, invite)} />
-              <button onClick={() => void run(() => share(inviteUrl(window.location.origin, invite)))}>
-                {typeof navigator.share === "function" ? "Share" : "Copy"}
-              </button>
+              <p>Share this link. Anyone who opens it can join the Group.</p>
+              <input readOnly aria-label="Invite link" value={inviteUrl(window.location.origin, inviteToken)} />
+              <button onClick={() => void run(() => copy(inviteUrl(window.location.origin, inviteToken)))}>Copy</button>
+              {canShare && (
+                <button onClick={() => void run(() => share(inviteUrl(window.location.origin, inviteToken)))}>Share</button>
+              )}
               {copied && <span role="status"> Copied</span>}
             </>
           ) : (
@@ -140,11 +137,11 @@ export function GroupScreen() {
               void run(async () => {
                 const { token } = await api.createInviteLink(state.detail.group.id);
                 setCopied(false);
-                setInvite(token);
+                setInviteToken(token);
               })
             }
           >
-            {invite ? "Replace Invite link" : "Create Invite link"}
+            {inviteToken ? "Replace Invite link" : "Create Invite link"}
           </button>
           <h3>Members</h3>
           <ul>

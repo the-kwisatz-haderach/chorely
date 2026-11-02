@@ -88,6 +88,8 @@ const dateOnlySchema = z
     return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(s);
   }, "Not a calendar date");
 
+export const choreIdSchema = z.string().uuid();
+
 export const choreSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -117,3 +119,11 @@ export type QueueResponse = z.infer<typeof queueResponseSchema>;
 
 export const addChoreResponseSchema = z.object({ chore: choreSchema, revision: z.number().int() });
 export type AddChoreResponse = z.infer<typeof addChoreResponseSchema>;
+
+/** Assigns, reassigns or (with null) unassigns a Chore. */
+export const assignChoreBodySchema = z.object({ assigneeId: z.string().uuid().nullable() });
+export type AssignChoreBody = z.input<typeof assignChoreBodySchema>;
+
+/** The Chore after a Claim or assignment change, with the new Group revision. */
+export const choreResponseSchema = addChoreResponseSchema;
+export type ChoreResponse = AddChoreResponse;

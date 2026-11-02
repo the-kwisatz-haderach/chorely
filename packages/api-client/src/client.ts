@@ -2,6 +2,7 @@ import type { z } from "zod";
 import { ApiError, apiErrorBodySchema } from "./errors";
 import {
   addChoreResponseSchema,
+  choreResponseSchema,
   groupDetailResponseSchema,
   groupResponseSchema,
   currentInviteLinkResponseSchema,
@@ -14,6 +15,8 @@ import {
   verifyCodeResponseSchema,
   type AddChoreBody,
   type AddChoreResponse,
+  type AssignChoreBody,
+  type ChoreResponse,
   type CreateGroupBody,
   type CurrentInviteLinkResponse,
   type GroupDetailResponse,
@@ -62,6 +65,12 @@ export interface ApiClient {
   joinGroup(body: JoinGroupBody): Promise<GroupResponse>;
   getQueue(groupId: string): Promise<QueueResponse>;
   addChore(groupId: string, body: AddChoreBody): Promise<AddChoreResponse>;
+  /** Takes an unassigned Chore. Rejects with `conflict` (409) if someone else holds it. */
+  claimChore(groupId: string, choreId: string): Promise<ChoreResponse>;
+  /** Gives up a Chore the caller holds. Rejects with `conflict` if they do not hold it. */
+  unclaimChore(groupId: string, choreId: string): Promise<ChoreResponse>;
+  /** Assigns or reassigns a Chore to any Member, or unassigns it with null. */
+  assignChore(groupId: string, choreId: string, body: AssignChoreBody): Promise<ChoreResponse>;
 }
 
 function parseJson(text: string): unknown {
@@ -105,6 +114,9 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     return parsed.data;
   }
 
+  const choreUrl = (groupId: string, choreId: string, action: string) =>
+    `/groups/${encodeURIComponent(groupId)}/chores/${encodeURIComponent(choreId)}/${action}`;
+
   return {
     health: () => request("/health", healthResponseSchema),
     requestCode: (body) => request("/auth/request-code", okResponseSchema, { method: "POST", body }),
@@ -125,5 +137,20 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     getQueue: (groupId) => request(`/groups/${encodeURIComponent(groupId)}/chores`, queueResponseSchema),
     addChore: (groupId, body) =>
       request(`/groups/${encodeURIComponent(groupId)}/chores`, addChoreResponseSchema, { method: "POST", body }),
+    claimChore: (groupId, choreId) =>
+      request(choreUrl(groupId, choreId, "claim"), choreResponseSchema, {
+        method: "POST",
+        body: {},
+      }),
+    unclaimChore: (groupId, choreId) =>
+      request(choreUrl(groupId, choreId, "unclaim"), choreResponseSchema, {
+        method: "POST",
+        body: {},
+      }),
+    assignChore: (groupId, choreId, body) =>
+      request(choreUrl(groupId, choreId, "assignee"), choreResponseSchema, {
+        method: "PUT",
+        body,
+      }),
   };
 }

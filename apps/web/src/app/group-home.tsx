@@ -2,7 +2,10 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { type GroupDetailResponse } from "@chorely/api-client";
+import { Button, ErrorBanner, Loading } from "../ui";
 import { api } from "./api";
+import { EntryCard, Wordmark } from "./entry";
+import styles from "./entry.module.css";
 import { errorMessage } from "./error-message";
 import { tokenFromPasted } from "./invite";
 import { Queue } from "./queue";
@@ -41,49 +44,59 @@ export function GroupHome({ accountId }: { accountId: string }) {
 
   const field = (e: FormEvent<HTMLFormElement>, key: string) => String(new FormData(e.currentTarget).get(key) ?? "");
 
+  if (state.name === "ready") {
+    return (
+      <>
+        <TopBar title={state.detail.group.name} groupId={state.detail.group.id} />
+        <Queue groupId={state.detail.group.id} members={state.detail.members} accountId={accountId} />
+      </>
+    );
+  }
+
   return (
     <>
-      {state.name === "ready" ? (
-        <>
-          <TopBar title={state.detail.group.name} groupId={state.detail.group.id} />
-          <Queue groupId={state.detail.group.id} members={state.detail.members} accountId={accountId} />
-        </>
-      ) : (
-        <TopBar title="Chorely" />
-      )}
+      <Wordmark />
+      {state.name === "loading" && (error ? <ErrorBanner message={error} /> : <Loading />)}
 
       {state.name === "none" && (
-        <>
+        <EntryCard>
+          {/* One banner for both ways in, above them, so it is never under the wrong form. */}
+          {error && <ErrorBanner message={error} className={styles.banner} />}
           <form
+            className={styles.form}
             onSubmit={(e) => {
               e.preventDefault();
               const name = field(e, "name");
               void enter(() => api.createGroup({ name }));
             }}
           >
-            <h2>Create your Group</h2>
-            <label>
+            <h2 className={styles.heading}>Create your Group</h2>
+            <label className={styles.field}>
               Group name <input name="name" maxLength={60} required />
             </label>
-            <button disabled={busy}>Create Group</button>
+            <Button type="submit" variant="primary" className={styles.fullWidth} disabled={busy}>
+              Create Group
+            </Button>
           </form>
+          <p className={styles.divider}>or</p>
           <form
+            className={styles.form}
             onSubmit={(e) => {
               e.preventDefault();
               const token = tokenFromPasted(field(e, "invite"));
               void enter(() => api.joinGroup({ token }));
             }}
           >
-            <h2>Or join a Group</h2>
-            <label>
-              Paste an Invite link <input name="invite" required />
+            <h2 className={styles.heading}>Join a Group</h2>
+            <label className={styles.field}>
+              Paste an Invite link <input name="invite" inputMode="url" autoComplete="off" required />
             </label>
-            <button disabled={busy}>Join Group</button>
+            <Button type="submit" variant="secondary" className={styles.fullWidth} disabled={busy}>
+              Join Group
+            </Button>
           </form>
-        </>
+        </EntryCard>
       )}
-
-      {error && <p role="alert">{error}</p>}
     </>
   );
 }

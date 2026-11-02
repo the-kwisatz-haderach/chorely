@@ -1,8 +1,9 @@
-export { Button, type ButtonSize, type ButtonVariant } from "./button";
+export { Button, buttonClassName, type ButtonSize, type ButtonVariant } from "./button";
 export { cx } from "./class-names";
 export { Dialog } from "./dialog";
 export { EmptyState } from "./empty-state";
 export { ErrorBanner } from "./error-banner";
+export { Loading } from "./loading";
 export { Menu, MenuItem } from "./menu";
 export { SegmentedControl } from "./segmented-control";
 export { Sheet } from "./sheet";

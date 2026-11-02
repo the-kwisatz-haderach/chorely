@@ -1,0 +1,183 @@
+/* The full-page add and edit screens, and the Chore and Repeat fields they share. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.title {
+  font-size: var(--font-size-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-1);
+}
+
+/* A banner in the card is spaced by the card's gap, not its own margin. */
+.banner {
+  margin: 0;
+}
+
+/* A label above its control. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-weight: 600;
+}
+
+/* Text, note, date, number and select controls share one look. The border is muted text, not the decorative
+   --color-border, because it is the boundary that identifies the control (ADR 0005). */
+.control {
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-input);
+  font-weight: 400;
+}
+
+textarea.control {
+  min-height: calc(3 * var(--target-min));
+  resize: vertical;
+}
+
+/* A short number between words, as in "Every 2 weeks". */
+.inlineField {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+
+.inlineField .control {
+  width: calc(2 * var(--space-12));
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-1);
+  font-weight: 400;
+}
+
+/* Repeat: a section of the card under a hairline, its legend a small heading. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4) 0 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Floated so the legend sits inside the section, above its fields, instead of on the hairline. */
+.sectionHeading {
+  float: left;
+  width: 100%;
+  padding: 0;
+  font-size: var(--font-size-1);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Weekdays: a wrapping row of round toggles, each checkbox covering its own. */
+.weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.weekdaysLegend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--space-1);
+  padding: 0;
+  font-weight: 600;
+}
+
+.weekday {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-text-muted);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-1);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.weekday input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.weekday:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.weekday:has(input:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Save or Add, then Cancel. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.actions > * {
+  flex: 1;
+}
+
+/* Under the card: the edit screen's Stop repeating and Delete Chore. */
+.moreActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}

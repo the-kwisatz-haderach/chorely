@@ -25,13 +25,14 @@ test("Edit a Chore without moving it, flag overdue, and delete with a confirm", 
   await expect(page.getByLabel("Queue list")).toContainText("Assigned to Ada");
   await expect(page.getByLabel("Next up")).toContainText("Bins");
 
-  // Declining the confirm keeps the Chore; accepting removes it for good.
+  // Cancelling the confirm keeps the Chore; confirming removes it for good.
   await page.getByRole("link", { name: "Edit Bins" }).click();
-  page.once("dialog", (d) => void d.dismiss());
   await page.getByRole("button", { name: "Delete Chore" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
   await expect(page.getByRole("form", { name: "Edit Chore" })).toBeVisible();
-  page.once("dialog", (d) => void d.accept());
   await page.getByRole("button", { name: "Delete Chore" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByLabel("Next up")).toContainText("Dishes and pans");
   await expect(page.getByLabel("Next up")).not.toContainText("Bins");
 

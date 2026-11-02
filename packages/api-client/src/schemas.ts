@@ -125,5 +125,5 @@ export const assignChoreBodySchema = z.object({ assigneeId: z.string().uuid().nu
 export type AssignChoreBody = z.input<typeof assignChoreBodySchema>;
 
 /** The Chore after a Claim or assignment change, with the new Group revision. */
-export const choreResponseSchema = z.object({ chore: choreSchema, revision: z.number().int() });
-export type ChoreResponse = z.infer<typeof choreResponseSchema>;
+export const choreResponseSchema = addChoreResponseSchema;
+export type ChoreResponse = AddChoreResponse;

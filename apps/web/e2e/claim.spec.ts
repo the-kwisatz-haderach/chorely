@@ -65,7 +65,22 @@ test("Claim, unclaim, assign and a lost Claim race", async ({ browser }) => {
   await expect(bob.getByLabel("Next up")).toContainText("Assigned to Ada");
   await expect(bob.getByRole("button", { name: "Claim Bins" })).toBeHidden();
 
-  // Bob reassigns it to himself, then Ada hands it back to nobody.
+  // Ada assigns it to Bob, another Member.
+  await ada.getByLabel("Assign Bins").selectOption({ label: "Bob" });
+  await expect(ada.getByLabel("Next up")).toContainText("Assigned to Bob");
+  await bob.reload();
+  await expect(bob.getByLabel("Next up")).toContainText("Assigned to Bob");
+  await expect(bob.getByRole("button", { name: "Unclaim Bins" })).toBeVisible();
+
+  // Ada reassigns it back to herself while Bob's page is stale: his Unclaim 409s with the server's message, not the Claim one.
+  await ada.getByLabel("Assign Bins").selectOption({ label: "Ada" });
+  await expect(ada.getByLabel("Next up")).toContainText("Assigned to Ada");
+  await bob.getByRole("button", { name: "Unclaim Bins" }).click();
+  await expect(bob.getByText("You are not assigned to this Chore")).toBeVisible();
+  await expect(bob.getByText("Someone else got there first")).toBeHidden();
+  await expect(bob.getByLabel("Next up")).toContainText("Assigned to Ada");
+
+  // Bob reassigns it to himself, then back to nobody.
   await bob.getByLabel("Assign Bins").selectOption({ label: "Bob" });
   await expect(bob.getByLabel("Next up")).toContainText("Assigned to Bob");
   await expect(bob.getByRole("button", { name: "Unclaim Bins" })).toBeVisible();

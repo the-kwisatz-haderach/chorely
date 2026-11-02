@@ -114,6 +114,9 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     return parsed.data;
   }
 
+  const choreUrl = (groupId: string, choreId: string, action: string) =>
+    `/groups/${encodeURIComponent(groupId)}/chores/${encodeURIComponent(choreId)}/${action}`;
+
   return {
     health: () => request("/health", healthResponseSchema),
     requestCode: (body) => request("/auth/request-code", okResponseSchema, { method: "POST", body }),
@@ -135,17 +138,17 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     addChore: (groupId, body) =>
       request(`/groups/${encodeURIComponent(groupId)}/chores`, addChoreResponseSchema, { method: "POST", body }),
     claimChore: (groupId, choreId) =>
-      request(`/groups/${encodeURIComponent(groupId)}/chores/${encodeURIComponent(choreId)}/claim`, choreResponseSchema, {
+      request(choreUrl(groupId, choreId, "claim"), choreResponseSchema, {
         method: "POST",
         body: {},
       }),
     unclaimChore: (groupId, choreId) =>
-      request(`/groups/${encodeURIComponent(groupId)}/chores/${encodeURIComponent(choreId)}/unclaim`, choreResponseSchema, {
+      request(choreUrl(groupId, choreId, "unclaim"), choreResponseSchema, {
         method: "POST",
         body: {},
       }),
     assignChore: (groupId, choreId, body) =>
-      request(`/groups/${encodeURIComponent(groupId)}/chores/${encodeURIComponent(choreId)}/assignee`, choreResponseSchema, {
+      request(choreUrl(groupId, choreId, "assignee"), choreResponseSchema, {
         method: "PUT",
         body,
       }),

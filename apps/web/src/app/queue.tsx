@@ -15,6 +15,8 @@ function ChoreMeta({ chore, members }: { chore: ChoreDto; members: MemberDto[] }
   );
 }
 
+const LOST_CLAIM = "Someone else got there first, so nothing changed. The Queue has been refreshed.";
+
 interface ChoreActionsProps {
   chore: ChoreDto;
   members: MemberDto[];
@@ -106,17 +108,15 @@ export function Queue({
 
   const myMemberId = members.find((m) => m.accountId === accountId)?.id;
 
-  /** Runs a Claim or assignment, then refetches. A lost Claim race is explained rather than shown as a failure. */
-  async function changeAssignee(action: () => Promise<unknown>) {
+  /** Runs a Claim or assignment, then refetches. A 409 shows `lostRace` when given, else the server's message. */
+  async function runAndRefetch(action: () => Promise<unknown>, lostRace?: string) {
     setBusy(true);
     setError(undefined);
     try {
       await action();
     } catch (err) {
       setError(
-        err instanceof ApiError && err.code === "conflict"
-          ? "Someone else got there first, so nothing changed. The Queue has been refreshed."
-          : errorMessage(err),
+        err instanceof ApiError && err.code === "conflict" ? (lostRace ?? err.message) : errorMessage(err),
       );
     }
     try {
@@ -134,9 +134,9 @@ export function Queue({
       members={members}
       myMemberId={myMemberId}
       disabled={busy}
-      onClaim={() => void changeAssignee(() => api.claimChore(groupId, chore.id))}
-      onUnclaim={() => void changeAssignee(() => api.unclaimChore(groupId, chore.id))}
-      onAssign={(assigneeId) => void changeAssignee(() => api.assignChore(groupId, chore.id, { assigneeId }))}
+      onClaim={() => void runAndRefetch(() => api.claimChore(groupId, chore.id), LOST_CLAIM)}
+      onUnclaim={() => void runAndRefetch(() => api.unclaimChore(groupId, chore.id))}
+      onAssign={(assigneeId) => void runAndRefetch(() => api.assignChore(groupId, chore.id, { assigneeId }))}
     />
   );
 

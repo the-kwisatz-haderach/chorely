@@ -42,6 +42,7 @@ _Avoid_: Owner
 
 **Claim**:
 A Member taking an unassigned Chore, which makes them its Assignee.
+Any Member can also assign or reassign a Chore to any Member, or unassign it. The Assignee can **unclaim** a Chore to make it unassigned again.
 _Avoid_: Pick up, grab
 
 **Recurring Chore**:

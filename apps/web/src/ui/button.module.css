@@ -26,6 +26,12 @@
   border-color: var(--color-border);
 }
 
+.outline {
+  background: transparent;
+  color: inherit;
+  border-color: currentcolor;
+}
+
 .ghost {
   background: transparent;
   color: var(--color-text);
@@ -35,4 +41,25 @@
   background: var(--color-surface);
   color: var(--color-danger);
   border-color: currentcolor;
+}
+
+/* The on-primary pair inverted: green text on a white fill, for a button on a --color-primary surface. */
+.inverse {
+  background: var(--color-on-primary);
+  color: var(--color-primary);
+}
+
+/* Compact to look at; the invisible ::after keeps the touch target at least --target-min tall. */
+.small {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-1);
+}
+
+.small::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, 50% - var(--target-min) / 2) 0;
 }

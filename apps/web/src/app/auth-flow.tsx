@@ -2,12 +2,14 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { type AccountDto } from "@chorely/api-client";
+import { type Placement } from "@chorely/domain";
 import { api } from "./api";
 import { errorMessage } from "./error-message";
 import { EditChore } from "./edit-chore";
 import { GroupHome } from "./group-home";
 import { GroupPage, type GroupView } from "./group-page";
 import { JoinInvite } from "./join-invite";
+import { NewChore } from "./new-chore";
 import { TopBar } from "./top-bar";
 
 type Step = { name: "loading" } | { name: "email" } | { name: "code"; email: string } | { name: "signed-in"; account: AccountDto };
@@ -16,11 +18,13 @@ type Step = { name: "loading" } | { name: "email" } | { name: "code"; email: str
 export function AuthFlow({
   inviteToken,
   editChore,
+  newChore,
   groupPage,
   intro,
 }: {
   inviteToken?: string;
   editChore?: { groupId: string; choreId: string };
+  newChore?: { groupId: string; title: string; placement: Placement };
   groupPage?: { groupId: string; view: GroupView };
   /** Shown under the wordmark until the person is signed in. */
   intro?: ReactNode;
@@ -60,7 +64,7 @@ export function AuthFlow({
 
   const signedIn = step.name === "signed-in" && step.account.displayName;
   // Screens inside a Group show the Group's top bar instead of the wordmark.
-  const ownTopBar = signedIn && !inviteToken && !editChore;
+  const ownTopBar = signedIn && !inviteToken && !editChore && !newChore;
 
   return (
     <main>
@@ -132,6 +136,8 @@ export function AuthFlow({
             <JoinInvite token={inviteToken} />
           ) : editChore ? (
             <EditChore {...editChore} />
+          ) : newChore ? (
+            <NewChore {...newChore} />
           ) : groupPage ? (
             <GroupPage {...groupPage} />
           ) : (

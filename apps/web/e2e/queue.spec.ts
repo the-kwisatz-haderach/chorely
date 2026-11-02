@@ -15,12 +15,20 @@ test("adding Chores fills the Queue: empty state, Next up, numbered list, Due-da
 
   await expect(page.getByText("Nothing in the Queue yet")).toBeVisible();
 
+  // The FAB's sheet takes a title and Front or Back (Back by default); "More options" opens the full add screen.
   const add = async (title: string, opts: { due?: string; front?: boolean } = {}) => {
     await page.getByRole("button", { name: "Add a Chore" }).click();
     const form = page.getByRole("form", { name: "Add a Chore" });
     await form.getByLabel("Title").fill(title);
-    if (opts.due) await form.getByLabel("Due date").fill(opts.due);
-    await form.getByRole("button", { name: opts.front ? "Add to front" : "Add", exact: true }).click();
+    await expect(form.getByLabel("Back")).toBeChecked();
+    if (opts.front) await form.getByLabel("Front").check();
+    if (opts.due) {
+      await form.getByRole("button", { name: "More options" }).click();
+      await expect(page).toHaveURL(/\/chores\/new/);
+      await expect(form.getByLabel("Title")).toHaveValue(title);
+      await form.getByLabel("Due date").fill(opts.due);
+    }
+    await form.getByRole("button", { name: "Add", exact: true }).click();
     await expect(form).toBeHidden();
   };
 

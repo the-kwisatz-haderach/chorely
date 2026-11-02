@@ -1,0 +1,50 @@
+.control {
+  display: inline-flex;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+/* Floated so it sits in the row as the first segment instead of on the border. */
+.legend {
+  float: left;
+  align-self: center;
+  padding: 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-1);
+}
+
+/* Each radio covers its own segment, so the whole segment is the target. */
+.segment {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding: 0 var(--space-4);
+  border-left: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segment input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segment:has(input:checked) {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* Drawn inside the segment: the control's overflow clips anything outside it. */
+.segment:has(input:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}

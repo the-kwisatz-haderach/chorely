@@ -7,10 +7,13 @@ export interface QueuedChore {
   dueDate: string | null;
 }
 
+/** An end of the Queue, where a Chore is added or moved to by hand. */
+export type Placement = "front" | "back";
+
 export interface SeedInput {
   dueDate: string | null;
   /** A manual placement, which always overrides the Due-date seeding. */
-  placement?: "front" | "back";
+  placement?: Placement;
 }
 
 /**

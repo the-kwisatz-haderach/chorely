@@ -1,10 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type HTMLAttributes } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  ArrowDownToLine,
+  ArrowUpToLine,
+  Check,
+  ChevronDown,
+  ClipboardList,
+  Ellipsis,
+  GripVertical,
+  Plus,
+  TriangleAlert,
+} from "lucide-react";
 import { ApiError, type ChoreDto, type MemberDto } from "@chorely/api-client";
+import { type Placement } from "@chorely/domain";
 import { api } from "./api";
+import { MemberOptions, PlacementToggle, addChoreBody } from "./chore-fields";
 import { errorMessage } from "./error-message";
-import { Toast } from "../ui";
+import { Button, cx, EmptyState, ErrorBanner, Menu, MenuItem, Sheet, Toast, VisuallyHidden } from "../ui";
 import { useMovableQueue } from "./use-movable-queue";
 import styles from "./queue.module.css";
 
@@ -15,30 +30,12 @@ function todayLocal(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-function ChoreMeta({ chore, members }: { chore: ChoreDto; members: MemberDto[] }) {
-  const assignee = members.find((m) => m.id === chore.assigneeId);
-  const overdue = chore.dueDate !== null && chore.dueDate < todayLocal();
-  return (
-    <>
-      {chore.dueDate && (
-        <span>
-          {" "}
-          Due {chore.dueDate}
-          {overdue && <strong className={styles.overdue}> Overdue</strong>}
-        </span>
-      )}
-      <span> {assignee ? `Assigned to ${assignee.displayName ?? "Unnamed"}` : "Unassigned"}</span>
-    </>
-  );
-}
-
 /** How long the Undo toast stays up after a Chore is completed. */
 const UNDO_MS = 8000;
 
 const LOST_CLAIM = "Someone else got there first, so nothing changed. The Queue has been refreshed.";
 
-interface ChoreActionsProps {
-  groupId: string;
+interface ChoreMetaProps {
   chore: ChoreDto;
   members: MemberDto[];
   myMemberId: string | undefined;
@@ -46,75 +43,104 @@ interface ChoreActionsProps {
   onClaim(): void;
   onUnclaim(): void;
   onAssign(assigneeId: string | null): void;
-  onMove(to: "front" | "back"): void;
 }
 
-function closeMenu(e: MouseEvent<HTMLButtonElement>) {
-  e.currentTarget.closest("details")?.removeAttribute("open");
-}
-
-/** One-tap Claim or Unclaim, plus assigning the Chore to any Member. */
-function ChoreActions({ groupId, chore, members, myMemberId, disabled, onClaim, onUnclaim, onAssign, onMove }: ChoreActionsProps) {
+/** The line under a Chore's title: its Due date (muted), its Assignee as a pill that reassigns, and Claim or Unclaim. */
+function ChoreMeta({ chore, members, myMemberId, disabled, onClaim, onUnclaim, onAssign }: ChoreMetaProps) {
   // A Chore whose Assignee has left reads as unassigned (the server nulls it; this covers a stale Queue).
-  const held = members.some((m) => m.id === chore.assigneeId) ? chore.assigneeId : null;
+  const assignee = members.find((m) => m.id === chore.assigneeId);
+  const overdue = chore.dueDate !== null && chore.dueDate < todayLocal();
   return (
-    <span>
-      {!held && (
-        <button disabled={disabled} onClick={onClaim} aria-label={`Claim ${chore.title}`}>
+    <div className={styles.meta}>
+      {chore.dueDate &&
+        (overdue ? (
+          <span className={styles.overdue}>
+            <TriangleAlert aria-hidden size={14} />
+            Due {chore.dueDate} · Overdue
+          </span>
+        ) : (
+          <span className={styles.due}>Due {chore.dueDate}</span>
+        ))}
+      {/* The pill shows the Assignee; the transparent select over it reassigns to any Member. */}
+      <span className={styles.pill}>
+        {assignee ? (
+          <>
+            <VisuallyHidden>Assigned to </VisuallyHidden>
+            {assignee.displayName ?? "Unnamed"}
+          </>
+        ) : (
+          "Unassigned"
+        )}
+        <ChevronDown aria-hidden size={12} />
+        <select
+          aria-label={`Assign ${chore.title}`}
+          className={styles.pillSelect}
+          disabled={disabled}
+          value={assignee?.id ?? ""}
+          onChange={(e) => onAssign(e.target.value || null)}
+        >
+          <MemberOptions members={members} />
+        </select>
+      </span>
+      {!assignee && (
+        <Button variant="outline" size="small" disabled={disabled} onClick={onClaim} aria-label={`Claim ${chore.title}`}>
           Claim
-        </button>
+        </Button>
       )}
-      {held && held === myMemberId && (
-        <button disabled={disabled} onClick={onUnclaim} aria-label={`Unclaim ${chore.title}`}>
+      {assignee && assignee.id === myMemberId && (
+        <Button
+          variant="outline"
+          size="small"
+          disabled={disabled}
+          onClick={onUnclaim}
+          aria-label={`Unclaim ${chore.title}`}
+        >
           Unclaim
-        </button>
+        </Button>
       )}
+    </div>
+  );
+}
+
+/** A Chore's title, which opens its edit screen. */
+function ChoreTitle({ groupId, chore, className }: { groupId: string; chore: ChoreDto; className?: string }) {
+  return (
+    <strong className={className}>
       <a href={`/groups/${groupId}/chores/${chore.id}/edit`} aria-label={`Edit ${chore.title}`}>
-        Edit
+        {chore.title}
       </a>
-      <select
-        aria-label={`Assign ${chore.title}`}
-        disabled={disabled}
-        value={held ?? ""}
-        onChange={(e) => onAssign(e.target.value || null)}
-      >
-        <option value="">Unassigned</option>
-        {members.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.displayName ?? "Unnamed"}
-          </option>
-        ))}
-      </select>
-      <details className={styles.move}>
-        <summary aria-label={`Move ${chore.title}`}>Move</summary>
-        {(["front", "back"] as const).map((to) => (
-          <button
-            key={to}
-            onClick={(e) => {
-              closeMenu(e);
-              onMove(to);
-            }}
-          >
-            Move to {to}
-          </button>
-        ))}
-      </details>
+    </strong>
+  );
+}
+
+/** The grip a row is dragged by. Hidden from assistive tech: the "⋯" Move menu is the keyboard and fallback path. */
+function DragHandle(props: HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <span className={styles.handle} title="Drag to reorder" aria-hidden {...props}>
+      <GripVertical size={18} />
     </span>
   );
 }
 
-/** The Group's Queue: a Next-up hero for the first Chore, the rest as a numbered list, and an add form. */
-export function Queue({
-  groupId,
-  members,
-  accountId,
-  inviteLink,
-}: {
-  groupId: string;
-  members: MemberDto[];
-  accountId: string;
-  inviteLink?: string;
-}) {
+/** The "⋯" menu: Move to front and Move to back. */
+function MoveMenu({ chore, onMove }: { chore: ChoreDto; onMove(to: Placement): void }) {
+  return (
+    <Menu label={`Move ${chore.title}`} trigger={<Ellipsis aria-hidden size={20} />} triggerClassName={styles.more}>
+      <MenuItem onClick={() => onMove("front")}>
+        <ArrowUpToLine aria-hidden size={16} />
+        Move to front
+      </MenuItem>
+      <MenuItem onClick={() => onMove("back")}>
+        <ArrowDownToLine aria-hidden size={16} />
+        Move to back
+      </MenuItem>
+    </Menu>
+  );
+}
+
+/** The Group's Queue: a Next-up hero for the first Chore, the rest as numbered rows, and a FAB that opens the add sheet. */
+export function Queue({ groupId, members, accountId }: { groupId: string; members: MemberDto[]; accountId: string }) {
+  const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -131,19 +157,12 @@ export function Queue({
       .catch((err: unknown) => setError(errorMessage(err)));
   }, [groupId]);
 
-  async function submit(form: HTMLFormElement, placement: "front" | undefined) {
-    const data = new FormData(form);
-    const text = (key: string) => String(data.get(key) ?? "");
+  async function submit(form: HTMLFormElement) {
+    const body = addChoreBody(form);
     setBusy(true);
     setError(undefined);
     try {
-      await api.addChore(groupId, {
-        title: text("title"),
-        note: text("note"),
-        dueDate: text("dueDate") || null,
-        assigneeId: text("assigneeId") || null,
-        ...(placement ? { placement } : {}),
-      });
+      await api.addChore(groupId, body);
       showQueue((await api.getQueue(groupId)).chores);
       setAdding(false);
     } catch (err) {
@@ -151,6 +170,13 @@ export function Queue({
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Carries the sheet's title and placement over to the full add screen. */
+  function moreOptions(form: HTMLFormElement) {
+    const { title, placement = "back" } = addChoreBody(form);
+    const query = new URLSearchParams({ title, placement });
+    router.push(`/groups/${groupId}/chores/new?${query}`);
   }
 
   const myMemberId = members.find((m) => m.accountId === accountId)?.id;
@@ -194,9 +220,8 @@ export function Queue({
     await runAndRefetch(() => api.undoCompleteChore(groupId, id));
   }
 
-  const actions = (chore: ChoreDto) => (
-    <ChoreActions
-      groupId={groupId}
+  const meta = (chore: ChoreDto) => (
+    <ChoreMeta
       chore={chore}
       members={members}
       myMemberId={myMemberId}
@@ -204,94 +229,106 @@ export function Queue({
       onClaim={() => void runAndRefetch(() => api.claimChore(groupId, chore.id), LOST_CLAIM)}
       onUnclaim={() => void runAndRefetch(() => api.unclaimChore(groupId, chore.id))}
       onAssign={(assigneeId) => void runAndRefetch(() => api.assignChore(groupId, chore.id, { assigneeId }))}
-      onMove={(to) => moveToEnd(chore, to)}
     />
   );
+  const moveMenu = (chore: ChoreDto) => <MoveMenu chore={chore} onMove={(to) => moveToEnd(chore, to)} />;
 
   const [next, ...rest] = chores ?? [];
+  const nextDrag = next && dragProps(next);
 
   return (
     <section aria-label="Queue" className={styles.queue}>
-      <h3>Queue</h3>
+      <VisuallyHidden as="h2">Queue</VisuallyHidden>
+      {error && <ErrorBanner message={error} />}
       {chores && !next && (
-        <p>
-          Nothing in the Queue yet. Add your first Chore{inviteLink ? ` and share the Invite link: ${inviteLink}` : " and share the Invite link"}.
-        </p>
+        <EmptyState
+          icon={<ClipboardList size={40} />}
+          message="Nothing in the Queue yet. Add your first Chore, then share the Invite link so the others can join."
+          action={
+            <div className={styles.emptyActions}>
+              <Button variant="primary" onClick={() => setAdding(true)}>
+                Add your first Chore
+              </Button>
+              <Link href={`/groups/${groupId}/settings`}>Share the Invite link</Link>
+            </div>
+          }
+        />
       )}
-      {next && (
-        <article aria-label="Next up" {...dragProps(next)}>
-          <h4>Next up</h4>
-          <strong>{next.title}</strong>
-          {next.note && <p>{next.note}</p>}
-          <ChoreMeta chore={next} members={members} />
-          {actions(next)}
-          <button
+      {next && nextDrag && (
+        <article aria-label="Next up" className={styles.hero} {...nextDrag.row}>
+          <div className={styles.heroHead}>
+            <DragHandle {...nextDrag.handle} />
+            <h3 className={styles.eyebrow}>Next up</h3>
+            {moveMenu(next)}
+          </div>
+          <ChoreTitle groupId={groupId} chore={next} className={styles.heroTitle} />
+          {next.note && <p className={styles.note}>{next.note}</p>}
+          {meta(next)}
+          <Button
+            variant="inverse"
             disabled={busy}
             onClick={() => void complete(next)}
             aria-label={`Complete ${next.title}`}
             className={styles.complete}
           >
+            <Check aria-hidden size={20} />
             Complete
-          </button>
+          </Button>
         </article>
       )}
       {rest.length > 0 && (
-        <ol start={2} aria-label="Queue list">
-          {rest.map((c) => (
-            <li key={c.id} {...dragProps(c)}>
-              <strong>{c.title}</strong>
-              <ChoreMeta chore={c} members={members} />
-              {actions(c)}
-            </li>
-          ))}
+        // role="list" keeps list semantics in Safari, which drops them when the markers are hidden.
+        <ol start={2} role="list" aria-label="Queue list" className={styles.list}>
+          {rest.map((c, i) => {
+            const drag = dragProps(c);
+            return (
+              <li key={c.id} className={styles.row} {...drag.row}>
+                <DragHandle {...drag.handle} />
+                <span className={styles.number} aria-hidden>
+                  {i + 2}
+                </span>
+                <ChoreTitle groupId={groupId} chore={c} className={styles.title} />
+                {moveMenu(c)}
+                {meta(c)}
+              </li>
+            );
+          })}
         </ol>
       )}
 
-      {adding ? (
-        <form
-          aria-label="Add a Chore"
-          onSubmit={(e: FormEvent<HTMLFormElement>) => {
-            e.preventDefault();
-            const placement = (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "front" ? "front" : undefined;
-            void submit(e.currentTarget, placement);
-          }}
-        >
-          <label>
-            Title <input name="title" maxLength={100} required />
-          </label>
-          <label>
-            Note <textarea name="note" maxLength={1000} />
-          </label>
-          <label>
-            Due date <input name="dueDate" type="date" />
-          </label>
-          <label>
-            Assignee
-            <select name="assigneeId" defaultValue="">
-              <option value="">Unassigned</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.displayName ?? "Unnamed"}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p>Without a Due date a Chore goes to the back; with one, it is placed by date.</p>
-          <button disabled={busy} value="back">
-            Add
-          </button>
-          <button disabled={busy} value="front">
-            Add to front
-          </button>
-          <button type="button" onClick={() => setAdding(false)}>
-            Cancel
-          </button>
-        </form>
-      ) : (
-        <button className={styles.fab} onClick={() => setAdding(true)}>
-          + Add a Chore
-        </button>
-      )}
+      <Button
+        variant="primary"
+        className={cx(styles.fab, undo && styles.fabRaised)}
+        onClick={() => setAdding(true)} aria-label="Add a Chore">
+        <Plus aria-hidden size={28} />
+      </Button>
+      <Sheet open={adding} onClose={() => setAdding(false)} title="Add a Chore">
+        {adding && (
+          <form
+            aria-label="Add a Chore"
+            onSubmit={(e: FormEvent<HTMLFormElement>) => {
+              e.preventDefault();
+              void submit(e.currentTarget);
+            }}
+          >
+            <label className={styles.sheetField}>
+              Title <input name="title" maxLength={100} required />
+            </label>
+            <PlacementToggle />
+            <div className={styles.sheetActions}>
+              <Button variant="ghost" onClick={(e) => e.currentTarget.form && moreOptions(e.currentTarget.form)}>
+                More options
+              </Button>
+              <Button variant="ghost" onClick={() => setAdding(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" type="submit" disabled={busy}>
+                Add
+              </Button>
+            </div>
+          </form>
+        )}
+      </Sheet>
       {undo && (
         <Toast
           action={
@@ -303,7 +340,6 @@ export function Queue({
           Completed {undo.title}
         </Toast>
       )}
-      {error && <p role="alert">{error}</p>}
     </section>
   );
 }

@@ -25,12 +25,15 @@ export async function signIn(page: Page, email: string, displayName: string) {
   await page.getByRole("button", { name: "Continue" }).click();
 }
 
-/** Adds a Chore through the add form, optionally with a Due date. */
+/** Adds a Chore to the back through the FAB's sheet; a Due date is set on the "More options" screen. */
 export async function addChore(page: Page, title: string, dueDate?: string) {
   await page.getByRole("button", { name: "Add a Chore" }).click();
   const form = page.getByRole("form", { name: "Add a Chore" });
   await form.getByLabel("Title").fill(title);
-  if (dueDate) await form.getByLabel("Due date").fill(dueDate);
+  if (dueDate) {
+    await form.getByRole("button", { name: "More options" }).click();
+    await form.getByLabel("Due date").fill(dueDate);
+  }
   await form.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("form", { name: "Add a Chore" })).toBeHidden();
 }

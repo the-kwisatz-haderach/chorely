@@ -100,6 +100,34 @@ const dateOnlySchema = z
 
 export const choreIdSchema = z.string().uuid();
 
+const recurrenceCommon = {
+  /** `calendar` (the default) keeps a fixed schedule; `completion` counts from the day an Occurrence is completed. */
+  anchor: z.enum(["calendar", "completion"]).default("calendar"),
+  /** The Member each new Occurrence is assigned to; null leaves new Occurrences unassigned. */
+  assigneeId: z.string().uuid().nullish().transform((a) => a ?? null),
+};
+
+/**
+ * How a Recurring Chore repeats: every N days, every N weeks on ISO weekdays (1 is Monday, 7 is Sunday), or every
+ * N months on a day of the month (29 to 31 fall on the last day of shorter months). Shared by its Occurrences.
+ */
+export const recurrenceSchema = z.discriminatedUnion("unit", [
+  z.object({ unit: z.literal("day"), every: z.number().int().min(1).max(365), ...recurrenceCommon }),
+  z.object({
+    unit: z.literal("week"),
+    every: z.number().int().min(1).max(52),
+    weekdays: z
+      .array(z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7)]))
+      .min(1)
+      .max(7)
+      .transform((days) => [...new Set(days)].sort((a, b) => a - b)),
+    ...recurrenceCommon,
+  }),
+  z.object({ unit: z.literal("month"), every: z.number().int().min(1).max(24), dayOfMonth: z.number().int().min(1).max(31), ...recurrenceCommon }),
+]);
+export type RecurrenceBody = z.input<typeof recurrenceSchema>;
+export type RecurrenceDto = z.output<typeof recurrenceSchema>;
+
 export const choreSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -109,6 +137,8 @@ export const choreSchema = z.object({
   /** The assigned Member's id; null when unassigned. */
   assigneeId: z.string().nullable(),
   position: z.string(),
+  /** The schedule of a Recurring Chore's Occurrence; null for a one-off Chore. */
+  recurrence: recurrenceSchema.nullable(),
 });
 export type ChoreDto = z.infer<typeof choreSchema>;
 
@@ -119,6 +149,8 @@ export const addChoreBodySchema = z.object({
   assigneeId: z.string().uuid().nullish().transform((a) => a ?? null),
   /** Omit to let the Due date seed the Position; otherwise a manual placement wins. */
   placement: z.enum(["front", "back"]).optional(),
+  /** Makes the Chore the first Occurrence of a Recurring Chore. */
+  recurrence: recurrenceSchema.nullish().transform((r) => r ?? null),
 });
 export type AddChoreBody = z.input<typeof addChoreBodySchema>;
 export type AddChoreInput = z.output<typeof addChoreBodySchema>;
@@ -130,18 +162,36 @@ export type QueueResponse = z.infer<typeof queueResponseSchema>;
 export const addChoreResponseSchema = z.object({ chore: choreSchema, revision: z.number().int() });
 export type AddChoreResponse = z.infer<typeof addChoreResponseSchema>;
 
-/** Edits an open Chore. Omitted fields stay as they are; `dueDate` and `assigneeId` take null to clear. Never moves the Chore. */
+/**
+ * Edits an open Chore. Omitted fields stay as they are; `dueDate` and `assigneeId` take null to clear. Never moves the
+ * Chore. A `recurrence` sets or changes the schedule for future Occurrences only; null is "Stop repeating", which
+ * leaves this Occurrence as a one-off.
+ */
 export const updateChoreBodySchema = z.object({
   title: z.string().trim().min(1).max(100).optional(),
   note: z.string().trim().max(1000).optional(),
   dueDate: dateOnlySchema.nullable().optional(),
   assigneeId: z.string().uuid().nullable().optional(),
+  recurrence: recurrenceSchema.nullable().optional(),
 });
 export type UpdateChoreBody = z.input<typeof updateChoreBodySchema>;
 export type UpdateChoreInput = z.output<typeof updateChoreBodySchema>;
 
-/** The Group revision after a Chore was deleted. */
-export const deleteChoreResponseSchema = z.object({ revision: z.number().int() });
+/**
+ * Deleting an open Occurrence of a Recurring Chore either skips it ("Delete this one": the next Occurrence is created
+ * as on completion) or, with `stopRepeating`, ends the series. `today` is as for completing. Sent as query parameters.
+ */
+export const deleteChoreQuerySchema = z.object({
+  stopRepeating: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  today: dateOnlySchema.optional(),
+});
+export type DeleteChoreQuery = { stopRepeating?: boolean; today?: string };
+
+/** The Group revision after a Chore was deleted, and the Occurrence that replaced it, if any. */
+export const deleteChoreResponseSchema = z.object({ revision: z.number().int(), next: choreSchema.nullable() });
 export type DeleteChoreResponse = z.infer<typeof deleteChoreResponseSchema>;
 
 /**
@@ -172,7 +222,19 @@ export const doneChoreSchema = choreSchema.extend({
 });
 export type DoneChoreDto = z.infer<typeof doneChoreSchema>;
 
-export const completeChoreResponseSchema = z.object({ chore: doneChoreSchema, revision: z.number().int() });
+/**
+ * `today` is the Member's local date, which the next Occurrence's Due date counts from. It may differ from the
+ * server's date by a day either way; omitted, the server's UTC date is used.
+ */
+export const completeChoreBodySchema = z.object({ today: dateOnlySchema.optional() });
+export type CompleteChoreBody = z.input<typeof completeChoreBodySchema>;
+
+/** The completed Chore, and the next Occurrence it created when it was an Occurrence of a Recurring Chore. */
+export const completeChoreResponseSchema = z.object({
+  chore: doneChoreSchema,
+  next: choreSchema.nullable(),
+  revision: z.number().int(),
+});
 export type CompleteChoreResponse = z.infer<typeof completeChoreResponseSchema>;
 
 export const DONE_PAGE_SIZE_DEFAULT = 20;

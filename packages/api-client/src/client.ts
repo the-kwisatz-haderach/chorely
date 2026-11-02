@@ -21,8 +21,10 @@ import {
   type AddChoreResponse,
   type AssignChoreBody,
   type ChoreResponse,
+  type CompleteChoreBody,
   type CompleteChoreResponse,
   type CreateGroupBody,
+  type DeleteChoreQuery,
   type DeleteChoreResponse,
   type DoneListResponse,
   type DoneQuery,
@@ -89,8 +91,11 @@ export interface ApiClient {
   addChore(groupId: string, body: AddChoreBody): Promise<AddChoreResponse>;
   /** Edits any field of an open Chore without moving it. Rejects with `conflict` if it is already done. */
   updateChore(groupId: string, choreId: string, body: UpdateChoreBody): Promise<ChoreResponse>;
-  /** Permanently deletes an open Chore. Rejects with `conflict` if it is already done. */
-  deleteChore(groupId: string, choreId: string): Promise<DeleteChoreResponse>;
+  /**
+   * Permanently deletes an open Chore. Rejects with `conflict` if it is already done. For an Occurrence of a
+   * Recurring Chore it is "Delete this one", which creates the next Occurrence, unless `stopRepeating` ends the series.
+   */
+  deleteChore(groupId: string, choreId: string, query?: DeleteChoreQuery): Promise<DeleteChoreResponse>;
   /**
    * Moves an open Chore between anchors and returns it with its new `position`. A hard-deleted anchor falls back
    * to the other one; with neither anchor left, or a Chore that is already done, it rejects with `conflict`.
@@ -102,9 +107,15 @@ export interface ApiClient {
   unclaimChore(groupId: string, choreId: string): Promise<ChoreResponse>;
   /** Assigns or reassigns a Chore to any Member, or unassigns it with null. */
   assignChore(groupId: string, choreId: string, body: AssignChoreBody): Promise<ChoreResponse>;
-  /** Completes an open Chore, keeping its Position. Rejects with `conflict` if it is already done. */
-  completeChore(groupId: string, choreId: string): Promise<CompleteChoreResponse>;
-  /** Reopens a completed Chore at its previous Position. Rejects with `conflict` if it is not done. */
+  /**
+   * Completes an open Chore, keeping its Position, and creates the next Occurrence of a Recurring Chore. Pass the
+   * Member's local `today`. Rejects with `conflict` if it is already done.
+   */
+  completeChore(groupId: string, choreId: string, body?: CompleteChoreBody): Promise<CompleteChoreResponse>;
+  /**
+   * Reopens a completed Chore at its previous Position and deletes the Occurrence its completion created. Rejects
+   * with `conflict` if it is not done, or if that Occurrence is done too.
+   */
   undoCompleteChore(groupId: string, choreId: string): Promise<ChoreResponse>;
   /** Completed Chores, newest first. Pass the previous page's `nextCursor` to continue. */
   getDoneList(groupId: string, query?: DoneQuery): Promise<DoneListResponse>;
@@ -121,7 +132,7 @@ function parseJson(text: string): unknown {
 export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions): ApiClient {
   async function request<T>(
     path: string,
-    schema: z.ZodType<T>,
+    schema: z.ZodType<T, z.ZodTypeDef, unknown>,
     options: { method?: string; body?: unknown } = {},
   ): Promise<T> {
     let res: Awaited<ReturnType<FetchLike>>;
@@ -179,8 +190,13 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
       request(`/groups/${encodeURIComponent(groupId)}/chores`, addChoreResponseSchema, { method: "POST", body }),
     updateChore: (groupId, choreId, body) =>
       request(choreUrl(groupId, choreId), choreResponseSchema, { method: "PATCH", body }),
-    deleteChore: (groupId, choreId) =>
-      request(choreUrl(groupId, choreId), deleteChoreResponseSchema, { method: "DELETE" }),
+    deleteChore: (groupId, choreId, query = {}) => {
+      const params: string[] = [];
+      if (query.stopRepeating) params.push("stopRepeating=true");
+      if (query.today) params.push(`today=${encodeURIComponent(query.today)}`);
+      const qs = params.length ? `?${params.join("&")}` : "";
+      return request(`${choreUrl(groupId, choreId)}${qs}`, deleteChoreResponseSchema, { method: "DELETE" });
+    },
     moveChore: (groupId, choreId, body) =>
       request(choreUrl(groupId, choreId, "move"), choreResponseSchema, { method: "POST", body }),
     claimChore: (groupId, choreId) =>
@@ -198,8 +214,8 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
         method: "PUT",
         body,
       }),
-    completeChore: (groupId, choreId) =>
-      request(choreUrl(groupId, choreId, "complete"), completeChoreResponseSchema, { method: "POST", body: {} }),
+    completeChore: (groupId, choreId, body = {}) =>
+      request(choreUrl(groupId, choreId, "complete"), completeChoreResponseSchema, { method: "POST", body }),
     undoCompleteChore: (groupId, choreId) =>
       request(choreUrl(groupId, choreId, "undo-complete"), choreResponseSchema, { method: "POST", body: {} }),
     getDoneList: (groupId, query = {}) => {

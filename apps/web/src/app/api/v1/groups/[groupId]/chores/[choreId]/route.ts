@@ -22,7 +22,11 @@ export function DELETE(req: Request, { params }: Ctx): Promise<Response> {
   return handle(async () => {
     const { groupId, choreId } = await params;
     const ctx = await requireMember(getDeps(), req, groupId);
-    const body: DeleteChoreResponse = await deleteChore(ctx, choreId);
+    const query = new URL(req.url).searchParams;
+    const body: DeleteChoreResponse = await deleteChore(ctx, choreId, {
+      stopRepeating: query.get("stopRepeating") ?? undefined,
+      today: query.get("today") ?? undefined,
+    });
     return ctx.withSession(json(body));
   });
 }

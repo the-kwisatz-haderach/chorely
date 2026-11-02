@@ -124,8 +124,8 @@ export function Queue({ groupId, members, inviteLink }: { groupId: string; membe
           </button>
         </form>
       ) : (
-        <button aria-label="Add a Chore" style={{ position: "fixed", right: 24, bottom: 24 }} onClick={() => setAdding(true)}>
-          +
+        <button style={{ position: "fixed", right: 24, bottom: 24, padding: "12px 20px" }} onClick={() => setAdding(true)}>
+          + Add a Chore
         </button>
       )}
       {error && <p role="alert">{error}</p>}

@@ -14,6 +14,7 @@ import {
   type MoveChoreInput,
   type QueueResponse,
   type RecurrenceDto,
+  type RevisionResponse,
   type UpdateChoreInput,
 } from "@chorely/api-client";
 import { chores, groups, members, recurrences } from "../db/schema";
@@ -53,6 +54,13 @@ export async function getQueue(ctx: MemberContext): Promise<QueueResponse> {
       .orderBy(...queueOrder);
     return { chores: await withRecurrence(tx, rows), revision: group.revision };
   });
+}
+
+/** The Group revision on its own, for clients polling for changes without reading the Queue. */
+export async function getRevision(ctx: MemberContext): Promise<RevisionResponse> {
+  const [group] = await ctx.db.select({ revision: groups.revision }).from(groups).where(eq(groups.id, ctx.groupId));
+  if (!group) throw groupNotFound();
+  return group;
 }
 
 type Tx = Parameters<Parameters<MemberContext["db"]["transaction"]>[0]>[0];

@@ -6,6 +6,8 @@ test("Claim, unclaim, assign and a lost Claim race", async ({ browser }) => {
   const stamp = Date.now();
   const ada = await (await browser.newContext()).newPage();
   const bob = await (await browser.newContext()).newPage();
+  // Bob's Queue has to stay stale for the lost races below, so live updates are off for him.
+  await bob.route("**/revision", (route) => route.abort());
 
   await ada.goto("/");
   await signIn(ada, `e2e-claim-ada-${stamp}@example.com`, "Ada");

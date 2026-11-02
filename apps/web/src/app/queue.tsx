@@ -22,6 +22,7 @@ import { errorMessage } from "./error-message";
 import { todayLocal } from "./today";
 import { Button, cx, EmptyState, ErrorBanner, Menu, MenuItem, Sheet, Toast, VisuallyHidden } from "../ui";
 import { useMovableQueue } from "./use-movable-queue";
+import { useRevisionPoll } from "./use-revision-poll";
 import styles from "./queue.module.css";
 
 /** How long the Undo toast stays up after a Chore is completed. */
@@ -138,7 +139,8 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const { chores, showQueue, moveToEnd, dragProps } = useMovableQueue(groupId, setError);
+  const { chores, showQueue, refetchIfChanged, moveToEnd, dragProps } = useMovableQueue(groupId, setError);
+  useRevisionPoll(groupId, refetchIfChanged);
   const [undo, setUndo] = useState<{ id: string; title: string }>();
   const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -147,7 +149,7 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
   useEffect(() => {
     api
       .getQueue(groupId)
-      .then(({ chores }) => showQueue(chores))
+      .then(showQueue)
       .catch((err: unknown) => setError(errorMessage(err)));
   }, [groupId]);
 
@@ -157,7 +159,7 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
     setError(undefined);
     try {
       await api.addChore(groupId, body);
-      showQueue((await api.getQueue(groupId)).chores);
+      showQueue(await api.getQueue(groupId));
       setAdding(false);
     } catch (err) {
       setError(errorMessage(err));
@@ -187,7 +189,7 @@ export function Queue({ groupId, members, accountId }: { groupId: string; member
       );
     }
     try {
-      showQueue((await api.getQueue(groupId)).chores);
+      showQueue(await api.getQueue(groupId));
     } catch (err) {
       setError(errorMessage(err));
     } finally {

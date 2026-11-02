@@ -102,7 +102,7 @@ export function AuthFlow({ inviteToken }: { inviteToken?: string }) {
       {step.name === "signed-in" && step.account.displayName && (
         <>
           <p>Signed in as {step.account.displayName}</p>
-          {inviteToken ? <JoinInvite token={inviteToken} /> : <GroupScreen />}
+          {inviteToken ? <JoinInvite token={inviteToken} /> : <GroupScreen accountId={step.account.id} />}
           <button
             disabled={busy}
             onClick={() =>

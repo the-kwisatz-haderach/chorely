@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { type ChoreDto, type MemberDto } from "@chorely/api-client";
+import { ApiError, type ChoreDto, type MemberDto } from "@chorely/api-client";
 import { api } from "./api";
 import { errorMessage } from "./error-message";
 
@@ -15,8 +15,61 @@ function ChoreMeta({ chore, members }: { chore: ChoreDto; members: MemberDto[] }
   );
 }
 
+interface ChoreActionsProps {
+  chore: ChoreDto;
+  members: MemberDto[];
+  myMemberId: string | undefined;
+  disabled: boolean;
+  onClaim(): void;
+  onUnclaim(): void;
+  onAssign(assigneeId: string | null): void;
+}
+
+/** One-tap Claim or Unclaim, plus assigning the Chore to any Member. */
+function ChoreActions({ chore, members, myMemberId, disabled, onClaim, onUnclaim, onAssign }: ChoreActionsProps) {
+  // A Chore whose Assignee has left reads as unassigned (the server nulls it; this covers a stale Queue).
+  const held = members.some((m) => m.id === chore.assigneeId) ? chore.assigneeId : null;
+  return (
+    <span>
+      {!held && (
+        <button disabled={disabled} onClick={onClaim} aria-label={`Claim ${chore.title}`}>
+          Claim
+        </button>
+      )}
+      {held && held === myMemberId && (
+        <button disabled={disabled} onClick={onUnclaim} aria-label={`Unclaim ${chore.title}`}>
+          Unclaim
+        </button>
+      )}
+      <select
+        aria-label={`Assign ${chore.title}`}
+        disabled={disabled}
+        value={held ?? ""}
+        onChange={(e) => onAssign(e.target.value || null)}
+      >
+        <option value="">Unassigned</option>
+        {members.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.displayName ?? "Unnamed"}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
 /** The Group's Queue: a Next-up hero for the first Chore, the rest as a numbered list, and an add form. */
-export function Queue({ groupId, members, inviteLink }: { groupId: string; members: MemberDto[]; inviteLink?: string }) {
+export function Queue({
+  groupId,
+  members,
+  accountId,
+  inviteLink,
+}: {
+  groupId: string;
+  members: MemberDto[];
+  accountId: string;
+  inviteLink?: string;
+}) {
   const [chores, setChores] = useState<ChoreDto[]>();
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -51,6 +104,42 @@ export function Queue({ groupId, members, inviteLink }: { groupId: string; membe
     }
   }
 
+  const myMemberId = members.find((m) => m.accountId === accountId)?.id;
+
+  /** Runs a Claim or assignment, then refetches. A lost Claim race is explained rather than shown as a failure. */
+  async function changeAssignee(action: () => Promise<unknown>) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await action();
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.code === "conflict"
+          ? "Someone else got there first, so nothing changed. The Queue has been refreshed."
+          : errorMessage(err),
+      );
+    }
+    try {
+      setChores((await api.getQueue(groupId)).chores);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const actions = (chore: ChoreDto) => (
+    <ChoreActions
+      chore={chore}
+      members={members}
+      myMemberId={myMemberId}
+      disabled={busy}
+      onClaim={() => void changeAssignee(() => api.claimChore(groupId, chore.id))}
+      onUnclaim={() => void changeAssignee(() => api.unclaimChore(groupId, chore.id))}
+      onAssign={(assigneeId) => void changeAssignee(() => api.assignChore(groupId, chore.id, { assigneeId }))}
+    />
+  );
+
   const [next, ...rest] = chores ?? [];
 
   return (
@@ -67,6 +156,7 @@ export function Queue({ groupId, members, inviteLink }: { groupId: string; membe
           <strong>{next.title}</strong>
           {next.note && <p>{next.note}</p>}
           <ChoreMeta chore={next} members={members} />
+          {actions(next)}
         </article>
       )}
       {rest.length > 0 && (
@@ -75,6 +165,7 @@ export function Queue({ groupId, members, inviteLink }: { groupId: string; membe
             <li key={c.id}>
               <strong>{c.title}</strong>
               <ChoreMeta chore={c} members={members} />
+              {actions(c)}
             </li>
           ))}
         </ol>

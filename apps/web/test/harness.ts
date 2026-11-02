@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { createApiClient, type ApiClient, type FetchLike } from "@chorely/api-client";
 import { createDb } from "../src/server/db/client";
-import { accounts, inviteLinks, loginCodes, rateLimits, sessions } from "../src/server/db/schema";
+import { accounts, inviteLinks, loginCodes, members, rateLimits, sessions } from "../src/server/db/schema";
 import { setDeps } from "../src/server/deps";
 import type { Email } from "../src/server/email";
 import { newId } from "../src/server/ids";
@@ -67,6 +67,8 @@ export interface TestApp {
   /** Simulates a rotated secret or damaged row: the stored copy no longer decrypts. */
   corruptInviteCiphertexts(): Promise<void>;
   tableCounts(): Promise<{ loginCodes: number; sessions: number; rateLimits: number }>;
+  /** Simulates a Member leaving the Group (there is no leave endpoint yet). */
+  removeMember(memberId: string): Promise<void>;
   insertAccount(email: string): Promise<void>;
   countAccounts(): Promise<number>;
   /** Closes the app's database connections so requests hit a failing database. */
@@ -153,6 +155,9 @@ export async function createTestApp(): Promise<TestApp> {
       const n = async (table: typeof loginCodes | typeof sessions | typeof rateLimits) =>
         (await db.select({ n: count() }).from(table))[0]?.n ?? 0;
       return { loginCodes: await n(loginCodes), sessions: await n(sessions), rateLimits: await n(rateLimits) };
+    },
+    async removeMember(memberId) {
+      await db.delete(members).where(eq(members.id, memberId));
     },
     async insertAccount(email) {
       await db.insert(accounts).values({ id: newId(), email });

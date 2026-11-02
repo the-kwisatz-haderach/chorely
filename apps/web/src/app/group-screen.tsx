@@ -10,7 +10,7 @@ import { Queue } from "./queue";
 type State = { name: "loading" } | { name: "none" } | { name: "ready"; detail: GroupDetailResponse };
 
 /** First-run screen when the Account has no Group, otherwise the Group's Members and its name. */
-export function GroupScreen() {
+export function GroupScreen({ accountId }: { accountId: string }) {
   const [state, setState] = useState<State>({ name: "loading" });
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -109,7 +109,7 @@ export function GroupScreen() {
       {state.name === "ready" && (
         <>
           <h2>{state.detail.group.name}</h2>
-          <Queue groupId={state.detail.group.id} members={state.detail.members} />
+          <Queue groupId={state.detail.group.id} members={state.detail.members} accountId={accountId} />
           <form
             onSubmit={(e) => {
               e.preventDefault();

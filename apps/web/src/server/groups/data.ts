@@ -37,7 +37,7 @@ export async function listGroupsFor(db: Database, accountId: string): Promise<Gr
     .orderBy(asc(members.createdAt));
 }
 
-export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** Serialises work per Account so the one-Group-per-Account check cannot be raced. */
 async function lockAccount(tx: Tx, accountId: string): Promise<void> {
@@ -133,6 +133,7 @@ async function depart(tx: Tx, member: { id: string; groupId: string }, deleteGro
     await tx.delete(groups).where(eq(groups.id, member.groupId));
     return { groupDeleted: true };
   }
+  // Completed Chores too, so an Undo never reopens a Chore assigned to a Former member.
   await tx.update(chores).set({ assigneeId: null }).where(eq(chores.assigneeId, member.id));
   await tx.update(members).set({ accountId: null }).where(eq(members.id, member.id));
   return { groupDeleted: false };

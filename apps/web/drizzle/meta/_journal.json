@@ -50,6 +50,13 @@
       "when": 1793610654363,
       "tag": "0006_nebulous_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793625841140,
+      "tag": "0007_boring_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

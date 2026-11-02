@@ -52,7 +52,10 @@ export const groups = pgTable("groups", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** A Member is a membership row: Account x Group. */
+/**
+ * A Member is a membership row: Account x Group. A Member who leaves keeps the row with a null `accountId`, a
+ * "Former member" (ADR 0003). Deleting an Account must make its Members Former members first, so the key restricts.
+ */
 export const members = pgTable(
   "members",
   {
@@ -60,9 +63,7 @@ export const members = pgTable(
     groupId: uuid("group_id")
       .notNull()
       .references(() => groups.id, { onDelete: "cascade" }),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique("members_group_account_unique").on(t.groupId, t.accountId), index("members_account_id_idx").on(t.accountId)],

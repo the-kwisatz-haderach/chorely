@@ -67,6 +67,16 @@ export type GroupResponse = z.infer<typeof groupResponseSchema>;
 export const groupDetailResponseSchema = z.object({ group: groupSchema, members: z.array(memberSchema) });
 export type GroupDetailResponse = z.infer<typeof groupDetailResponseSchema>;
 
+/**
+ * Leaves the Group. The last Member leaving deletes the Group with its Chores and history, so they must send
+ * `deleteGroup: true`; without it that is a `conflict`, which also covers the others leaving in the meantime.
+ */
+export const leaveGroupBodySchema = z.object({ deleteGroup: z.boolean().default(false) });
+export type LeaveGroupBody = z.input<typeof leaveGroupBodySchema>;
+
+export const leaveGroupResponseSchema = z.object({ groupDeleted: z.boolean() });
+export type LeaveGroupResponse = z.infer<typeof leaveGroupResponseSchema>;
+
 /** An Invite link token: 128 random bits, base64url. */
 export const inviteTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{22}$/);
 

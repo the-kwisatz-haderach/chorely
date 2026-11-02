@@ -81,9 +81,9 @@ describe("Assignee and Claim (contract, real Postgres)", () => {
   });
 
   it("shows Chores held by a Member who has left as unassigned, and lets anyone claim them", async () => {
-    const { ada, bob, group, chore, bobId } = await setup();
+    const { ada, bob, group, chore } = await setup();
     await bob.claimChore(group.id, chore.id);
-    await app.removeMember(bobId);
+    await bob.leaveGroup(group.id, {});
     expect((await ada.getQueue(group.id)).chores[0]?.assigneeId).toBeNull();
     const res = await ada.claimChore(group.id, chore.id);
     expect(res.chore.assigneeId).not.toBeNull();

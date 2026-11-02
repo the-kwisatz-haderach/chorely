@@ -11,6 +11,7 @@ import {
   currentInviteLinkResponseSchema,
   healthResponseSchema,
   inviteLinkResponseSchema,
+  leaveGroupResponseSchema,
   listGroupsResponseSchema,
   meResponseSchema,
   okResponseSchema,
@@ -31,6 +32,8 @@ import {
   type HealthResponse,
   type InviteLinkResponse,
   type JoinGroupBody,
+  type LeaveGroupBody,
+  type LeaveGroupResponse,
   type MoveChoreBody,
   type ListGroupsResponse,
   type MeResponse,
@@ -64,6 +67,11 @@ export interface ApiClient {
   getMe(): Promise<MeResponse>;
   setDisplayName(body: SetDisplayNameBody): Promise<MeResponse>;
   signOut(): Promise<OkResponse>;
+  /**
+   * Deletes the caller's Account and ends the session. They become a Former member in each of their Groups, and a
+   * Group they were the last Member of is deleted.
+   */
+  deleteAccount(): Promise<OkResponse>;
   listGroups(): Promise<ListGroupsResponse>;
   createGroup(body: CreateGroupBody): Promise<GroupResponse>;
   getGroup(groupId: string): Promise<GroupDetailResponse>;
@@ -72,6 +80,11 @@ export interface ApiClient {
   /** Creates the Group's Invite link, or replaces it so the old one stops working. */
   createInviteLink(groupId: string): Promise<InviteLinkResponse>;
   joinGroup(body: JoinGroupBody): Promise<GroupResponse>;
+  /**
+   * Leaves the Group: the caller's Chores become unassigned and they show as a Former member. The last Member must
+   * send `deleteGroup: true`, which deletes the Group; otherwise that rejects with `conflict`.
+   */
+  leaveGroup(groupId: string, body: LeaveGroupBody): Promise<LeaveGroupResponse>;
   getQueue(groupId: string): Promise<QueueResponse>;
   addChore(groupId: string, body: AddChoreBody): Promise<AddChoreResponse>;
   /** Edits any field of an open Chore without moving it. Rejects with `conflict` if it is already done. */
@@ -148,6 +161,7 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     getMe: () => request("/me", meResponseSchema),
     setDisplayName: (body) => request("/me", meResponseSchema, { method: "PATCH", body }),
     signOut: () => request("/auth/sign-out", okResponseSchema, { method: "POST", body: {} }),
+    deleteAccount: () => request("/me", okResponseSchema, { method: "DELETE" }),
     listGroups: () => request("/groups", listGroupsResponseSchema),
     createGroup: (body) => request("/groups", groupResponseSchema, { method: "POST", body }),
     getGroup: (groupId) => request(`/groups/${encodeURIComponent(groupId)}`, groupDetailResponseSchema),
@@ -158,6 +172,8 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     createInviteLink: (groupId) =>
       request(`/groups/${encodeURIComponent(groupId)}/invite-link`, inviteLinkResponseSchema, { method: "POST", body: {} }),
     joinGroup: (body) => request("/invites/join", groupResponseSchema, { method: "POST", body }),
+    leaveGroup: (groupId, body) =>
+      request(`/groups/${encodeURIComponent(groupId)}/leave`, leaveGroupResponseSchema, { method: "POST", body }),
     getQueue: (groupId) => request(`/groups/${encodeURIComponent(groupId)}/chores`, queueResponseSchema),
     addChore: (groupId, body) =>
       request(`/groups/${encodeURIComponent(groupId)}/chores`, addChoreResponseSchema, { method: "POST", body }),

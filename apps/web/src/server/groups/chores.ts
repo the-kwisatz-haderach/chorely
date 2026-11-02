@@ -88,12 +88,12 @@ async function bumpRevision(tx: Tx, ctx: MemberContext): Promise<{ revision: num
   return group;
 }
 
-/** Rejects an Assignee who is not a Member of this Group. */
+/** Rejects an Assignee who is not a current Member of this Group; a Former member has no Account. */
 async function requireAssignee(tx: Tx, ctx: MemberContext, memberId: string): Promise<void> {
   const [member] = await tx
     .select({ id: members.id })
     .from(members)
-    .where(and(eq(members.id, memberId), eq(members.groupId, ctx.groupId)));
+    .where(and(eq(members.id, memberId), eq(members.groupId, ctx.groupId), isNotNull(members.accountId)));
   if (!member) throw new AppError("validation_failed", "Assignee must be a Member of the Group");
 }
 
@@ -360,9 +360,11 @@ export async function getDoneList(ctx: MemberContext, rawQuery: { cursor?: strin
     after = { at: new Date(match[1]!), id: match[2]! };
   }
 
+  // A completer who has left keeps their Member row without an Account; the contract shows them as null.
   const rows = await ctx.db
-    .select(doneColumns)
+    .select({ ...doneColumns, completedById: sql<string | null>`case when ${members.accountId} is null then null else ${chores.completedById} end` })
     .from(chores)
+    .leftJoin(members, eq(members.id, chores.completedById))
     .where(
       and(
         eq(chores.groupId, ctx.groupId),

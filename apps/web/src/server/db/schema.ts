@@ -101,7 +101,11 @@ export const chores = pgTable(
     dueDate: date("due_date", { mode: "string" }),
     assigneeId: uuid("assignee_id").references(() => members.id, { onDelete: "set null" }),
     position: text("position").notNull(),
+    /** Set when the Chore is completed; a completed Chore keeps its `position` so Undo can restore its place. */
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    /** Null while open, and for a completer who has since left (a "Former member"). */
+    completedById: uuid("completed_by_id").references(() => members.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("chores_group_position_idx").on(t.groupId, t.position, t.id)],
+  (t) => [index("chores_group_position_idx").on(t.groupId, t.position, t.id), index("chores_group_completed_idx").on(t.groupId, t.completedAt, t.id)],
 );

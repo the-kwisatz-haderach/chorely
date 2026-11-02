@@ -127,3 +127,32 @@ export type AssignChoreBody = z.input<typeof assignChoreBodySchema>;
 /** The Chore after a Claim or assignment change, with the new Group revision. */
 export const choreResponseSchema = addChoreResponseSchema;
 export type ChoreResponse = AddChoreResponse;
+
+/** A completed Chore. It keeps its `position` so Undo can put it back. */
+export const doneChoreSchema = choreSchema.extend({
+  /** ISO 8601 instant. */
+  completedAt: z.string(),
+  /** The completer's Member id; null for a Former member. */
+  completedById: z.string().nullable(),
+});
+export type DoneChoreDto = z.infer<typeof doneChoreSchema>;
+
+export const completeChoreResponseSchema = z.object({ chore: doneChoreSchema, revision: z.number().int() });
+export type CompleteChoreResponse = z.infer<typeof completeChoreResponseSchema>;
+
+export const DONE_PAGE_SIZE_DEFAULT = 20;
+export const DONE_PAGE_SIZE_MAX = 50;
+
+/** The Done list is keyset-paginated, newest first; `cursor` is the opaque `nextCursor` of the previous page. */
+export const doneQuerySchema = z.object({
+  cursor: z.string().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(DONE_PAGE_SIZE_MAX).default(DONE_PAGE_SIZE_DEFAULT),
+});
+export type DoneQuery = z.input<typeof doneQuerySchema>;
+
+export const doneListResponseSchema = z.object({
+  chores: z.array(doneChoreSchema),
+  /** Null on the last page. */
+  nextCursor: z.string().nullable(),
+});
+export type DoneListResponse = z.infer<typeof doneListResponseSchema>;

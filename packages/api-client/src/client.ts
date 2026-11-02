@@ -3,6 +3,8 @@ import { ApiError, apiErrorBodySchema } from "./errors";
 import {
   addChoreResponseSchema,
   choreResponseSchema,
+  completeChoreResponseSchema,
+  doneListResponseSchema,
   groupDetailResponseSchema,
   groupResponseSchema,
   currentInviteLinkResponseSchema,
@@ -17,7 +19,10 @@ import {
   type AddChoreResponse,
   type AssignChoreBody,
   type ChoreResponse,
+  type CompleteChoreResponse,
   type CreateGroupBody,
+  type DoneListResponse,
+  type DoneQuery,
   type CurrentInviteLinkResponse,
   type GroupDetailResponse,
   type GroupResponse,
@@ -71,6 +76,12 @@ export interface ApiClient {
   unclaimChore(groupId: string, choreId: string): Promise<ChoreResponse>;
   /** Assigns or reassigns a Chore to any Member, or unassigns it with null. */
   assignChore(groupId: string, choreId: string, body: AssignChoreBody): Promise<ChoreResponse>;
+  /** Completes an open Chore, keeping its Position. Rejects with `conflict` if it is already done. */
+  completeChore(groupId: string, choreId: string): Promise<CompleteChoreResponse>;
+  /** Reopens a completed Chore at its previous Position. Rejects with `conflict` if it is not done. */
+  undoCompleteChore(groupId: string, choreId: string): Promise<ChoreResponse>;
+  /** Completed Chores, newest first. Pass the previous page's `nextCursor` to continue. */
+  getDoneList(groupId: string, query?: DoneQuery): Promise<DoneListResponse>;
 }
 
 function parseJson(text: string): unknown {
@@ -152,5 +163,16 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
         method: "PUT",
         body,
       }),
+    completeChore: (groupId, choreId) =>
+      request(choreUrl(groupId, choreId, "complete"), completeChoreResponseSchema, { method: "POST", body: {} }),
+    undoCompleteChore: (groupId, choreId) =>
+      request(choreUrl(groupId, choreId, "undo-complete"), choreResponseSchema, { method: "POST", body: {} }),
+    getDoneList: (groupId, query = {}) => {
+      const params: string[] = [];
+      if (query.cursor) params.push(`cursor=${encodeURIComponent(query.cursor)}`);
+      if (query.limit) params.push(`limit=${query.limit}`);
+      const qs = params.length ? `?${params.join("&")}` : "";
+      return request(`/groups/${encodeURIComponent(groupId)}/done${qs}`, doneListResponseSchema);
+    },
   };
 }

@@ -43,6 +43,13 @@
       "when": 1793608451504,
       "tag": "0005_wet_dazzler",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793610654363,
+      "tag": "0006_nebulous_shard",
+      "breakpoints": true
     }
   ]
 }

@@ -25,12 +25,3 @@
   padding: var(--space-3) var(--space-5);
 }
 
-/* Inverted colours: the text colour as background keeps the text/bg contrast pair. */
-.toast {
-  position: fixed;
-  left: calc(var(--space-6) + env(safe-area-inset-left));
-  bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
-  padding: var(--space-3) var(--space-5);
-  background: var(--color-text);
-  color: var(--color-bg);
-}

@@ -6,6 +6,11 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const eslint = new ESLint({ cwd: root });
 
+async function lintTsx(file: string, code: string) {
+  const [result] = await eslint.lintText(code, { filePath: `${root}${file}` });
+  return result?.messages.filter((m) => m.severity === 2) ?? [];
+}
+
 async function lintCss(file: string, code: string) {
   const { results } = await stylelint.lint({ code, codeFilename: `${root}${file}`, cwd: root });
   return results[0]?.warnings ?? [];
@@ -38,11 +43,6 @@ describe("raw colours in CSS (ADR 0005)", () => {
     expect(await lintCss(TOKENS, code)).toEqual([]);
   });
 });
-
-async function lintTsx(file: string, code: string) {
-  const [result] = await eslint.lintText(code, { filePath: `${root}${file}` });
-  return result?.messages.filter((m) => m.severity === 2) ?? [];
-}
 
 describe("JSX style prop (ADR 0005)", () => {
   it("is rejected in the web app", async () => {

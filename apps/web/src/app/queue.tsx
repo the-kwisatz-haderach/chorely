@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "re
 import { ApiError, type ChoreDto, type MemberDto } from "@chorely/api-client";
 import { api } from "./api";
 import { errorMessage } from "./error-message";
+import { Toast } from "../ui";
 import { useMovableQueue } from "./use-movable-queue";
 import styles from "./queue.module.css";
 
@@ -292,12 +293,15 @@ export function Queue({
         </button>
       )}
       {undo && (
-        <div role="status" className={styles.toast}>
-          Completed {undo.title}{" "}
-          <button onClick={() => void undoComplete(undo.id)} aria-label={`Undo completing ${undo.title}`}>
-            Undo
-          </button>
-        </div>
+        <Toast
+          action={
+            <button onClick={() => void undoComplete(undo.id)} aria-label={`Undo completing ${undo.title}`}>
+              Undo
+            </button>
+          }
+        >
+          Completed {undo.title}
+        </Toast>
       )}
       {error && <p role="alert">{error}</p>}
     </section>

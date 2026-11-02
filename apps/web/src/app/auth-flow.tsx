@@ -59,11 +59,12 @@ export function AuthFlow({
   }
 
   const signedIn = step.name === "signed-in" && step.account.displayName;
-  const groupScreen = signedIn && !inviteToken && !editChore;
+  // Screens inside a Group show the Group's top bar instead of the wordmark.
+  const ownTopBar = signedIn && !inviteToken && !editChore;
 
   return (
     <main>
-      {!groupScreen && <TopBar title="Chorely" />}
+      {!ownTopBar && <TopBar title="Chorely" />}
       {!signedIn && intro}
       {step.name === "email" && (
         <form

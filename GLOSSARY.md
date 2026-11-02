@@ -16,6 +16,10 @@ _Avoid_: User, participant
 The sign-in identity of a person, independent of any Group. An Account has one Member per Group it belongs to.
 _Avoid_: User, profile
 
+**Display name**:
+The name other people in a Group see for an Account, asked for once after the first sign-in. It is carried by the Account, not the Member.
+_Avoid_: Username, nickname
+
 **Chore**:
 A unit of work that appears in a Group's Queue, whether housework or any other work.
 _Avoid_: Task, work item, to-do

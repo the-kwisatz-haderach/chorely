@@ -6,6 +6,10 @@ export const ERROR_CODES = [
   "unavailable",
   "not_found",
   "validation_failed",
+  "unauthenticated",
+  "invalid_code",
+  "too_many_attempts",
+  "rate_limited",
   // Raised by the client itself, never sent by the server.
   "network_error",
   "invalid_response",

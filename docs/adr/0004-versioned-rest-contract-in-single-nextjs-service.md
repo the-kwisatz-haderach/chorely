@@ -9,5 +9,5 @@ The API is REST/JSON under `/api/v1`, implemented as Next.js route handlers in `
 - Errors share one shape, `{ code, message }`, with a stable machine-readable `code`. Races return explicit statuses (for example `409` on a lost Claim) and the client refetches.
 - Handlers validate with the same zod schemas the client uses; keeping routes and schemas in sync is a convention, not enforced by types.
 - Groups are addressed in the path (`/api/v1/groups/{groupId}/...`) even though v1 allows one Group per Member, so the contract survives multiple Groups.
-- Server-only code (Drizzle, auth, fractional-key generation, transactions) lives in a folder in `apps/web`, kept out of route files, with all database access behind one module that requires a Member context. Extracting it into a separate service later is a move, not a rewrite.
+- Server-only code (Drizzle, auth, fractional-key generation, transactions) lives in a folder in `apps/web`, kept out of route files, with all Group data access behind one module that requires a Member context. Auth (codes, sessions, Accounts) sits outside that rule because it runs before any Member exists, and lives in its own `server/auth` module. Extracting it into a separate service later is a move, not a rewrite.
 - `packages/domain` stays pure TypeScript with no I/O.

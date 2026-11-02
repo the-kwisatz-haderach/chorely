@@ -134,6 +134,15 @@ export type UpdateChoreInput = z.output<typeof updateChoreBodySchema>;
 export const deleteChoreResponseSchema = z.object({ revision: z.number().int() });
 export type DeleteChoreResponse = z.infer<typeof deleteChoreResponseSchema>;
 
+/**
+ * Moves a Chore by anchors (ADR 0002): `afterId` is the Chore it lands right after, `beforeId` the one it lands
+ * right before. Move to front sends only `beforeId`, move to back only `afterId`. The server picks the key.
+ */
+export const moveChoreBodySchema = z
+  .object({ afterId: choreIdSchema.optional(), beforeId: choreIdSchema.optional() })
+  .refine((b) => b.afterId !== undefined || b.beforeId !== undefined, "Give at least one anchor");
+export type MoveChoreBody = z.input<typeof moveChoreBodySchema>;
+
 /** Assigns, reassigns or (with null) unassigns a Chore. */
 export const assignChoreBodySchema = z.object({ assigneeId: z.string().uuid().nullable() });
 export type AssignChoreBody = z.input<typeof assignChoreBodySchema>;

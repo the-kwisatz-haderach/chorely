@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { seedPosition, type QueuedChore } from "./queue";
+import { positionBetween, seedPosition, type QueuedChore } from "./queue";
 
 const chore = (position: string, dueDate: string | null = null): QueuedChore => ({ position, dueDate });
 
@@ -66,5 +66,31 @@ describe("seedPosition", () => {
       queue.sort((a, b) => (a.position < b.position ? -1 : 1));
     }
     expect(Math.max(...queue.map((c) => c.position.length))).toBeLessThan(60);
+  });
+});
+
+describe("positionBetween", () => {
+  it("places a key strictly between two anchors", () => {
+    const key = positionBetween("a0", "a1");
+    expect(key! > "a0" && key! < "a1").toBe(true);
+  });
+
+  it("goes before the first or after the last when one side is open", () => {
+    expect(positionBetween(null, "a0")! < "a0").toBe(true);
+    expect(positionBetween("a0", null)! > "a0").toBe(true);
+  });
+
+  it("gives no key when the anchors are out of order or tied", () => {
+    expect(positionBetween("a1", "a0")).toBeUndefined();
+    expect(positionBetween("a0", "a0")).toBeUndefined();
+  });
+
+  it("keeps keys bounded when 200 moves land in one gap (ADR 0002)", () => {
+    let low = "a0";
+    const high = "a1";
+    for (let i = 0; i < 200; i++) low = positionBetween(low, high)!;
+    let high2 = "a1";
+    for (let i = 0; i < 200; i++) high2 = positionBetween("a0", high2)!;
+    expect(Math.max(low.length, high2.length)).toBeLessThan(60);
   });
 });

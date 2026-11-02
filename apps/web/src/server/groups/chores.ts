@@ -1,5 +1,5 @@
-import { and, asc, desc, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
-import { seedPosition } from "@chorely/domain";
+import { and, asc, desc, eq, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { positionBetween, seedPosition } from "@chorely/domain";
 import {
   choreIdSchema,
   doneQuerySchema,
@@ -10,6 +10,7 @@ import {
   type DeleteChoreResponse,
   type CompleteChoreResponse,
   type DoneListResponse,
+  type MoveChoreBody,
   type QueueResponse,
   type UpdateChoreInput,
 } from "@chorely/api-client";
@@ -177,6 +178,69 @@ export async function updateChore(ctx: MemberContext, choreId: string, input: Up
     };
     if (Object.keys(changes).length > 0) await tx.update(chores).set(changes).where(eq(chores.id, choreId));
     return { chore: { ...chore, ...changes }, revision: group.revision };
+  });
+}
+
+type Anchor = { id: string; position: string };
+
+/** An anchor's key, open or completed (a completed Chore keeps its key). Undefined when it is gone or not ours. */
+async function findAnchor(tx: Tx, ctx: MemberContext, id: string | undefined): Promise<Anchor | undefined> {
+  if (id === undefined) return undefined;
+  const [anchor] = await tx
+    .select({ id: chores.id, position: chores.position })
+    .from(chores)
+    .where(and(eq(chores.id, id), eq(chores.groupId, ctx.groupId)));
+  return anchor;
+}
+
+/** The open Chore right next to `anchor` on one side in Queue order, skipping the Chore being moved. */
+async function openNeighbour(tx: Tx, ctx: MemberContext, movingId: string, anchor: Anchor, side: "after" | "before") {
+  const key = sql`(${chores.position} collate "C", ${chores.id})`;
+  const anchorKey = sql`(${anchor.position} collate "C", ${anchor.id}::uuid)`;
+  const [row] = await tx
+    .select({ position: chores.position })
+    .from(chores)
+    .where(
+      and(
+        eq(chores.groupId, ctx.groupId),
+        isNull(chores.completedAt),
+        ne(chores.id, movingId),
+        side === "after" ? sql`${key} > ${anchorKey}` : sql`${key} < ${anchorKey}`,
+      ),
+    )
+    .orderBy(
+      ...(side === "after"
+        ? [asc(sql`${chores.position} collate "C"`), asc(chores.id)]
+        : [desc(sql`${chores.position} collate "C"`), desc(chores.id)]),
+    )
+    .limit(1);
+  return row;
+}
+
+/**
+ * Moves an open Chore between anchors and generates its new key (ADR 0002). A lone anchor (front, back, or the
+ * survivor when the other was hard-deleted) pairs with its open neighbour, so the Chore lands right beside it.
+ * With no anchor left, or anchors that are no longer in order, it is a `conflict` and the client refetches.
+ * Bumping the revision first takes the Group row lock, so concurrent moves of one Chore are last-write-wins.
+ */
+export async function moveChore(ctx: MemberContext, choreId: string, input: MoveChoreBody): Promise<ChoreResponse> {
+  if (input.afterId === choreId || input.beforeId === choreId) {
+    throw new AppError("validation_failed", "A Chore cannot be anchored on itself");
+  }
+  return ctx.db.transaction(async (tx) => {
+    const group = await bumpRevision(tx, ctx);
+    const chore = await requireOpenChore(tx, ctx, choreId);
+
+    const after = await findAnchor(tx, ctx, input.afterId);
+    const before = await findAnchor(tx, ctx, input.beforeId);
+    if (!after && !before) throw new AppError("conflict", "The Queue changed while you were moving this Chore");
+    const low = after ?? (await openNeighbour(tx, ctx, choreId, before!, "before"));
+    const high = before ?? (await openNeighbour(tx, ctx, choreId, after!, "after"));
+
+    const position = positionBetween(low?.position ?? null, high?.position ?? null);
+    if (position === undefined) throw new AppError("conflict", "The Queue changed while you were moving this Chore");
+    await tx.update(chores).set({ position }).where(eq(chores.id, choreId));
+    return { chore: { ...chore, position }, revision: group.revision };
   });
 }
 

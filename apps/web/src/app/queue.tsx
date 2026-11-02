@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type FormEvent, type MouseEvent } from "react";
 import { ApiError, type ChoreDto, type MemberDto } from "@chorely/api-client";
+import { positionBetween } from "@chorely/domain";
 import { api } from "./api";
 import { DoneList } from "./done-list";
 import { errorMessage } from "./error-message";
@@ -33,6 +34,14 @@ function ChoreMeta({ chore, members }: { chore: ChoreDto; members: MemberDto[] }
 /** How long the Undo toast stays up after a Chore is completed. */
 const UNDO_MS = 8000;
 
+/** The Queue order the server uses: `(position, id)`, byte-wise (keys and ids are ASCII). */
+function inQueueOrder(chores: ChoreDto[]): ChoreDto[] {
+  const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  return [...chores].sort((a, b) => cmp(a.position, b.position) || cmp(a.id, b.id));
+}
+
+const LOST_MOVE = "The Queue changed while you were moving that Chore, so it has been refreshed.";
+
 const LOST_CLAIM = "Someone else got there first, so nothing changed. The Queue has been refreshed.";
 
 interface ChoreActionsProps {
@@ -44,10 +53,15 @@ interface ChoreActionsProps {
   onClaim(): void;
   onUnclaim(): void;
   onAssign(assigneeId: string | null): void;
+  onMove(to: "front" | "back"): void;
+}
+
+function closeMenu(e: MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.closest("details")?.removeAttribute("open");
 }
 
 /** One-tap Claim or Unclaim, plus assigning the Chore to any Member. */
-function ChoreActions({ groupId, chore, members, myMemberId, disabled, onClaim, onUnclaim, onAssign }: ChoreActionsProps) {
+function ChoreActions({ groupId, chore, members, myMemberId, disabled, onClaim, onUnclaim, onAssign, onMove }: ChoreActionsProps) {
   // A Chore whose Assignee has left reads as unassigned (the server nulls it; this covers a stale Queue).
   const held = members.some((m) => m.id === chore.assigneeId) ? chore.assigneeId : null;
   return (
@@ -78,6 +92,25 @@ function ChoreActions({ groupId, chore, members, myMemberId, disabled, onClaim, 
           </option>
         ))}
       </select>
+      <details style={{ display: "inline-block" }}>
+        <summary aria-label={`Move ${chore.title}`}>Move</summary>
+        <button
+          onClick={(e) => {
+            closeMenu(e);
+            onMove("front");
+          }}
+        >
+          Move to front
+        </button>
+        <button
+          onClick={(e) => {
+            closeMenu(e);
+            onMove("back");
+          }}
+        >
+          Move to back
+        </button>
+      </details>
     </span>
   );
 }
@@ -104,12 +137,25 @@ export function Queue({
   // Bumped on every complete/undo so an open Done list reloads.
   const [doneVersion, setDoneVersion] = useState(0);
 
+  // Moves still in flight, by Chore id: the latest move's number and its provisional key. A fetched Queue keeps
+  // these keys so it cannot undo an optimistic move, and only the latest move's response is reconciled (ADR 0002).
+  const moving = useRef(new Map<string, { seq: number; position: string }>());
+  const moveSeq = useRef(0);
+  // Moves are sent one at a time, in order: each one's anchors assume the moves before it have landed.
+  const moveChain = useRef<Promise<void>>(Promise.resolve());
+  const dragged = useRef<string>(undefined);
+
   useEffect(() => () => clearTimeout(undoTimer.current), []);
+
+  /** Shows a fetched Queue, keeping the provisional key of any Chore whose move is still in flight. */
+  function showQueue(fetched: ChoreDto[]) {
+    setChores(inQueueOrder(fetched.map((c) => ({ ...c, position: moving.current.get(c.id)?.position ?? c.position }))));
+  }
 
   useEffect(() => {
     api
       .getQueue(groupId)
-      .then(({ chores }) => setChores(chores))
+      .then(({ chores }) => showQueue(chores))
       .catch((err: unknown) => setError(errorMessage(err)));
   }, [groupId]);
 
@@ -126,7 +172,7 @@ export function Queue({
         assigneeId: text("assigneeId") || null,
         ...(placement ? { placement } : {}),
       });
-      setChores((await api.getQueue(groupId)).chores);
+      showQueue((await api.getQueue(groupId)).chores);
       setAdding(false);
     } catch (err) {
       setError(errorMessage(err));
@@ -149,12 +195,85 @@ export function Queue({
       );
     }
     try {
-      setChores((await api.getQueue(groupId)).chores);
+      showQueue((await api.getQueue(groupId)).chores);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * Moves a Chore to `index` among the others: instantly with a provisional key, then reconciled with the key the
+   * server generates. On a conflict (or any failure) the Queue is refetched.
+   */
+  async function move(chore: ChoreDto, index: number) {
+    const others = (chores ?? []).filter((c) => c.id !== chore.id);
+    const after = others[index - 1];
+    const before = others[index];
+    if ((chores ?? [])[index]?.id === chore.id || (!after && !before)) return;
+
+    const seq = ++moveSeq.current;
+    const position = positionBetween(after?.position ?? null, before?.position ?? null) ?? chore.position;
+    moving.current.set(chore.id, { seq, position });
+    setChores([...others.slice(0, index), { ...chore, position }, ...others.slice(index)]);
+    setError(undefined);
+
+    const isLatest = () => moving.current.get(chore.id)?.seq === seq;
+    const sent = moveChain.current.then(() =>
+      api.moveChore(groupId, chore.id, {
+        ...(after ? { afterId: after.id } : {}),
+        ...(before ? { beforeId: before.id } : {}),
+      }),
+    );
+    moveChain.current = sent.then(
+      () => undefined,
+      () => undefined,
+    );
+    try {
+      const res = await sent;
+      if (!isLatest()) return;
+      moving.current.delete(chore.id);
+      setChores((current) => current && inQueueOrder(current.map((c) => (c.id === chore.id ? res.chore : c))));
+    } catch (err) {
+      if (!isLatest()) return;
+      moving.current.delete(chore.id);
+      setError(err instanceof ApiError && err.code === "conflict" ? LOST_MOVE : errorMessage(err));
+      try {
+        showQueue((await api.getQueue(groupId)).chores);
+      } catch (refetchErr) {
+        setError(errorMessage(refetchErr));
+      }
+    }
+  }
+
+  /** Drag and drop: dropping on a Chore lands below it when dragging down, above it when dragging up. */
+  function dragProps(chore: ChoreDto) {
+    return {
+      draggable: true,
+      style: { cursor: "grab" },
+      onDragStart: (e: DragEvent) => {
+        dragged.current = chore.id;
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", chore.id);
+      },
+      onDragOver: (e: DragEvent) => {
+        if (dragged.current) e.preventDefault();
+      },
+      onDrop: (e: DragEvent) => {
+        e.preventDefault();
+        const list = chores ?? [];
+        const from = list.findIndex((c) => c.id === dragged.current);
+        const to = list.findIndex((c) => c.id === chore.id);
+        const moved = list[from];
+        dragged.current = undefined;
+        if (!moved || from === to) return;
+        void move(moved, to);
+      },
+      onDragEnd: () => {
+        dragged.current = undefined;
+      },
+    };
   }
 
   function dismissUndo() {
@@ -188,6 +307,7 @@ export function Queue({
       onClaim={() => void runAndRefetch(() => api.claimChore(groupId, chore.id), LOST_CLAIM)}
       onUnclaim={() => void runAndRefetch(() => api.unclaimChore(groupId, chore.id))}
       onAssign={(assigneeId) => void runAndRefetch(() => api.assignChore(groupId, chore.id, { assigneeId }))}
+      onMove={(to) => void move(chore, to === "front" ? 0 : (chores ?? []).length - 1)}
     />
   );
 
@@ -202,7 +322,7 @@ export function Queue({
         </p>
       )}
       {next && (
-        <article aria-label="Next up">
+        <article aria-label="Next up" {...dragProps(next)}>
           <h4>Next up</h4>
           <strong>{next.title}</strong>
           {next.note && <p>{next.note}</p>}
@@ -221,7 +341,7 @@ export function Queue({
       {rest.length > 0 && (
         <ol start={2} aria-label="Queue list">
           {rest.map((c) => (
-            <li key={c.id}>
+            <li key={c.id} {...dragProps(c)}>
               <strong>{c.title}</strong>
               <ChoreMeta chore={c} members={members} />
               {actions(c)}

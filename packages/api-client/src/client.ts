@@ -4,6 +4,7 @@ import {
   addChoreResponseSchema,
   choreResponseSchema,
   completeChoreResponseSchema,
+  deleteChoreResponseSchema,
   doneListResponseSchema,
   groupDetailResponseSchema,
   groupResponseSchema,
@@ -21,6 +22,7 @@ import {
   type ChoreResponse,
   type CompleteChoreResponse,
   type CreateGroupBody,
+  type DeleteChoreResponse,
   type DoneListResponse,
   type DoneQuery,
   type CurrentInviteLinkResponse,
@@ -36,6 +38,7 @@ import {
   type RenameGroupBody,
   type RequestCodeBody,
   type SetDisplayNameBody,
+  type UpdateChoreBody,
   type VerifyCodeBody,
   type VerifyCodeResponse,
 } from "./schemas";
@@ -70,6 +73,10 @@ export interface ApiClient {
   joinGroup(body: JoinGroupBody): Promise<GroupResponse>;
   getQueue(groupId: string): Promise<QueueResponse>;
   addChore(groupId: string, body: AddChoreBody): Promise<AddChoreResponse>;
+  /** Edits any field of an open Chore without moving it. Rejects with `conflict` if it is already done. */
+  updateChore(groupId: string, choreId: string, body: UpdateChoreBody): Promise<ChoreResponse>;
+  /** Permanently deletes an open Chore. Rejects with `conflict` if it is already done. */
+  deleteChore(groupId: string, choreId: string): Promise<DeleteChoreResponse>;
   /** Takes an unassigned Chore. Rejects with `conflict` (409) if someone else holds it. */
   claimChore(groupId: string, choreId: string): Promise<ChoreResponse>;
   /** Gives up a Chore the caller holds. Rejects with `conflict` if they do not hold it. */
@@ -125,8 +132,8 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     return parsed.data;
   }
 
-  const choreUrl = (groupId: string, choreId: string, action: string) =>
-    `/groups/${encodeURIComponent(groupId)}/chores/${encodeURIComponent(choreId)}/${action}`;
+  const choreUrl = (groupId: string, choreId: string, action?: string) =>
+    `/groups/${encodeURIComponent(groupId)}/chores/${encodeURIComponent(choreId)}${action ? `/${action}` : ""}`;
 
   return {
     health: () => request("/health", healthResponseSchema),
@@ -148,6 +155,10 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     getQueue: (groupId) => request(`/groups/${encodeURIComponent(groupId)}/chores`, queueResponseSchema),
     addChore: (groupId, body) =>
       request(`/groups/${encodeURIComponent(groupId)}/chores`, addChoreResponseSchema, { method: "POST", body }),
+    updateChore: (groupId, choreId, body) =>
+      request(choreUrl(groupId, choreId), choreResponseSchema, { method: "PATCH", body }),
+    deleteChore: (groupId, choreId) =>
+      request(choreUrl(groupId, choreId), deleteChoreResponseSchema, { method: "DELETE" }),
     claimChore: (groupId, choreId) =>
       request(choreUrl(groupId, choreId, "claim"), choreResponseSchema, {
         method: "POST",

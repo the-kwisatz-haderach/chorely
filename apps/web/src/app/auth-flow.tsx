@@ -4,12 +4,19 @@ import { useEffect, useState, type FormEvent } from "react";
 import { type AccountDto } from "@chorely/api-client";
 import { api } from "./api";
 import { errorMessage } from "./error-message";
+import { EditChore } from "./edit-chore";
 import { GroupScreen } from "./group-screen";
 import { JoinInvite } from "./join-invite";
 
 type Step = { name: "loading" } | { name: "email" } | { name: "code"; email: string } | { name: "signed-in"; account: AccountDto };
 
-export function AuthFlow({ inviteToken }: { inviteToken?: string }) {
+export function AuthFlow({
+  inviteToken,
+  editChore,
+}: {
+  inviteToken?: string;
+  editChore?: { groupId: string; choreId: string };
+}) {
   const [step, setStep] = useState<Step>({ name: "loading" });
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -102,7 +109,13 @@ export function AuthFlow({ inviteToken }: { inviteToken?: string }) {
       {step.name === "signed-in" && step.account.displayName && (
         <>
           <p>Signed in as {step.account.displayName}</p>
-          {inviteToken ? <JoinInvite token={inviteToken} /> : <GroupScreen accountId={step.account.id} />}
+          {inviteToken ? (
+            <JoinInvite token={inviteToken} />
+          ) : editChore ? (
+            <EditChore {...editChore} />
+          ) : (
+            <GroupScreen accountId={step.account.id} />
+          )}
           <button
             disabled={busy}
             onClick={() =>

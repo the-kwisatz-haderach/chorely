@@ -6,11 +6,25 @@ import { api } from "./api";
 import { DoneList } from "./done-list";
 import { errorMessage } from "./error-message";
 
+/** Today as a local `YYYY-MM-DD`, comparable with a Chore's date-only Due date. */
+function todayLocal(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 function ChoreMeta({ chore, members }: { chore: ChoreDto; members: MemberDto[] }) {
   const assignee = members.find((m) => m.id === chore.assigneeId);
+  const overdue = chore.dueDate !== null && chore.dueDate < todayLocal();
   return (
     <>
-      {chore.dueDate && <span> Due {chore.dueDate}</span>}
+      {chore.dueDate && (
+        <span>
+          {" "}
+          Due {chore.dueDate}
+          {overdue && <strong style={{ color: "#b00020" }}> Overdue</strong>}
+        </span>
+      )}
       <span> {assignee ? `Assigned to ${assignee.displayName ?? "Unnamed"}` : "Unassigned"}</span>
     </>
   );
@@ -22,6 +36,7 @@ const UNDO_MS = 8000;
 const LOST_CLAIM = "Someone else got there first, so nothing changed. The Queue has been refreshed.";
 
 interface ChoreActionsProps {
+  groupId: string;
   chore: ChoreDto;
   members: MemberDto[];
   myMemberId: string | undefined;
@@ -32,7 +47,7 @@ interface ChoreActionsProps {
 }
 
 /** One-tap Claim or Unclaim, plus assigning the Chore to any Member. */
-function ChoreActions({ chore, members, myMemberId, disabled, onClaim, onUnclaim, onAssign }: ChoreActionsProps) {
+function ChoreActions({ groupId, chore, members, myMemberId, disabled, onClaim, onUnclaim, onAssign }: ChoreActionsProps) {
   // A Chore whose Assignee has left reads as unassigned (the server nulls it; this covers a stale Queue).
   const held = members.some((m) => m.id === chore.assigneeId) ? chore.assigneeId : null;
   return (
@@ -47,6 +62,9 @@ function ChoreActions({ chore, members, myMemberId, disabled, onClaim, onUnclaim
           Unclaim
         </button>
       )}
+      <a href={`/groups/${groupId}/chores/${chore.id}/edit`} aria-label={`Edit ${chore.title}`}>
+        Edit
+      </a>
       <select
         aria-label={`Assign ${chore.title}`}
         disabled={disabled}
@@ -162,6 +180,7 @@ export function Queue({
 
   const actions = (chore: ChoreDto) => (
     <ChoreActions
+      groupId={groupId}
       chore={chore}
       members={members}
       myMemberId={myMemberId}

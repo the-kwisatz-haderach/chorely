@@ -120,6 +120,20 @@ export type QueueResponse = z.infer<typeof queueResponseSchema>;
 export const addChoreResponseSchema = z.object({ chore: choreSchema, revision: z.number().int() });
 export type AddChoreResponse = z.infer<typeof addChoreResponseSchema>;
 
+/** Edits an open Chore. Omitted fields stay as they are; `dueDate` and `assigneeId` take null to clear. Never moves the Chore. */
+export const updateChoreBodySchema = z.object({
+  title: z.string().trim().min(1).max(100).optional(),
+  note: z.string().trim().max(1000).optional(),
+  dueDate: dateOnlySchema.nullable().optional(),
+  assigneeId: z.string().uuid().nullable().optional(),
+});
+export type UpdateChoreBody = z.input<typeof updateChoreBodySchema>;
+export type UpdateChoreInput = z.output<typeof updateChoreBodySchema>;
+
+/** The Group revision after a Chore was deleted. */
+export const deleteChoreResponseSchema = z.object({ revision: z.number().int() });
+export type DeleteChoreResponse = z.infer<typeof deleteChoreResponseSchema>;
+
 /** Assigns, reassigns or (with null) unassigns a Chore. */
 export const assignChoreBodySchema = z.object({ assigneeId: z.string().uuid().nullable() });
 export type AssignChoreBody = z.input<typeof assignChoreBodySchema>;

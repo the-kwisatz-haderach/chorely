@@ -1,6 +1,16 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { seedPosition } from "@chorely/domain";
-import { choreIdSchema, type AddChoreInput, type AddChoreResponse, type ChoreDto, type ChoreResponse, type QueueResponse } from "@chorely/api-client";
+import {
+  choreIdSchema,
+  doneQuerySchema,
+  type AddChoreInput,
+  type AddChoreResponse,
+  type ChoreDto,
+  type ChoreResponse,
+  type CompleteChoreResponse,
+  type DoneListResponse,
+  type QueueResponse,
+} from "@chorely/api-client";
 import { chores, groups, members } from "../db/schema";
 import { AppError } from "../http";
 import { newId } from "../ids";
@@ -26,7 +36,7 @@ export async function getQueue(ctx: MemberContext): Promise<QueueResponse> {
     const rows = await tx
       .select(choreColumns)
       .from(chores)
-      .where(eq(chores.groupId, ctx.groupId))
+      .where(and(eq(chores.groupId, ctx.groupId), isNull(chores.completedAt)))
       .orderBy(asc(sql`${chores.position} collate "C"`), asc(chores.id));
     return { chores: rows, revision: group.revision };
   });
@@ -35,12 +45,7 @@ export async function getQueue(ctx: MemberContext): Promise<QueueResponse> {
 export async function addChore(ctx: MemberContext, input: AddChoreInput): Promise<AddChoreResponse> {
   return ctx.db.transaction(async (tx) => {
     // Bumping first takes the Group row lock, which serialises adds so each reads the Queue it inserts into.
-    const [group] = await tx
-      .update(groups)
-      .set({ revision: sql`${groups.revision} + 1` })
-      .where(eq(groups.id, ctx.groupId))
-      .returning({ revision: groups.revision });
-    if (!group) throw groupNotFound();
+    const group = await bumpRevision(tx, ctx);
 
     if (input.assigneeId) {
       const [assignee] = await tx
@@ -53,7 +58,7 @@ export async function addChore(ctx: MemberContext, input: AddChoreInput): Promis
     const queue = await tx
       .select({ position: chores.position, dueDate: chores.dueDate })
       .from(chores)
-      .where(eq(chores.groupId, ctx.groupId))
+      .where(and(eq(chores.groupId, ctx.groupId), isNull(chores.completedAt)))
       .orderBy(asc(sql`${chores.position} collate "C"`), asc(chores.id));
 
     const chore = {
@@ -71,8 +76,23 @@ export async function addChore(ctx: MemberContext, input: AddChoreInput): Promis
 
 type Tx = Parameters<Parameters<MemberContext["db"]["transaction"]>[0]>[0];
 
+/** Bumps the Group revision. As the first write of a mutation it also takes the Group row lock. */
+async function bumpRevision(tx: Tx, ctx: MemberContext): Promise<{ revision: number }> {
+  const [group] = await tx
+    .update(groups)
+    .set({ revision: sql`${groups.revision} + 1` })
+    .where(eq(groups.id, ctx.groupId))
+    .returning({ revision: groups.revision });
+  if (!group) throw groupNotFound();
+  return group;
+}
+
 function choreNotFound(): AppError {
   return new AppError("not_found", "Chore not found");
+}
+
+function alreadyDone(): AppError {
+  return new AppError("conflict", "This Chore is already done");
 }
 
 /**
@@ -87,22 +107,19 @@ async function changeAssignee(
 ): Promise<ChoreResponse> {
   if (!choreIdSchema.safeParse(choreId).success) throw choreNotFound();
   return ctx.db.transaction(async (tx) => {
-    const [group] = await tx
-      .update(groups)
-      .set({ revision: sql`${groups.revision} + 1` })
-      .where(eq(groups.id, ctx.groupId))
-      .returning({ revision: groups.revision });
-    if (!group) throw groupNotFound();
+    const group = await bumpRevision(tx, ctx);
 
     const [chore] = await tx
-      .select(choreColumns)
+      .select({ ...choreColumns, completedAt: chores.completedAt })
       .from(chores)
       .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId)));
     if (!chore) throw choreNotFound();
+    if (chore.completedAt) throw alreadyDone();
 
     const assigneeId = await change(tx, chore);
     await tx.update(chores).set({ assigneeId }).where(eq(chores.id, choreId));
-    return { chore: { ...chore, assigneeId }, revision: group.revision };
+    const { id, title, note, dueDate, position } = chore;
+    return { chore: { id, title, note, dueDate, position, assigneeId }, revision: group.revision };
   });
 }
 
@@ -136,4 +153,99 @@ export function assignChore(ctx: MemberContext, choreId: string, assigneeId: str
     }
     return assigneeId;
   });
+}
+
+const doneColumns = { ...choreColumns, completedAt: chores.completedAt, completedById: chores.completedById };
+
+type DoneRow = ChoreDto & { completedAt: Date | null; completedById: string | null };
+
+function toDoneDto(row: DoneRow): CompleteChoreResponse["chore"] {
+  return { ...row, completedAt: row.completedAt!.toISOString() };
+}
+
+/**
+ * Completes an open Chore for any Member, recording who and when. The Chore keeps its `position`, so Undo
+ * puts it back where it was. Bumping the revision first takes the Group row lock, so completing twice
+ * loses cleanly with a `conflict`.
+ */
+export async function completeChore(ctx: MemberContext, choreId: string): Promise<CompleteChoreResponse> {
+  if (!choreIdSchema.safeParse(choreId).success) throw choreNotFound();
+  return ctx.db.transaction(async (tx) => {
+    const group = await bumpRevision(tx, ctx);
+
+    const [row] = await tx
+      .update(chores)
+      .set({ completedAt: new Date(), completedById: ctx.memberId })
+      .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId), isNull(chores.completedAt)))
+      .returning(doneColumns);
+    if (!row) {
+      const [existing] = await tx
+        .select({ id: chores.id })
+        .from(chores)
+        .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId)));
+      throw existing ? alreadyDone() : choreNotFound();
+    }
+    return { chore: toDoneDto(row), revision: group.revision };
+  });
+}
+
+/** Reopens a completed Chore at its retained Position. There is no time limit here; the Undo window is client-side. */
+export async function undoCompleteChore(ctx: MemberContext, choreId: string): Promise<ChoreResponse> {
+  if (!choreIdSchema.safeParse(choreId).success) throw choreNotFound();
+  return ctx.db.transaction(async (tx) => {
+    const group = await bumpRevision(tx, ctx);
+
+    const [chore] = await tx
+      .update(chores)
+      .set({ completedAt: null, completedById: null })
+      .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId), isNotNull(chores.completedAt)))
+      .returning(choreColumns);
+    if (!chore) {
+      const [existing] = await tx
+        .select({ id: chores.id })
+        .from(chores)
+        .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId)));
+      throw existing ? new AppError("conflict", "This Chore is not done") : choreNotFound();
+    }
+    return { chore, revision: group.revision };
+  });
+}
+
+/** A cursor is the last row's `completedAt` (ms ISO) and id, which is exactly the sort key. */
+const CURSOR = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)_([0-9a-f-]{36})$/;
+
+/** Completed Chores, newest first by `(completedAt, id)`, keyset-paginated so new completions never shift a page. */
+export async function getDoneList(ctx: MemberContext, rawQuery: { cursor?: string | undefined; limit?: string | undefined }): Promise<DoneListResponse> {
+  const parsed = doneQuerySchema.safeParse(rawQuery);
+  if (!parsed.success) throw new AppError("validation_failed", "Invalid Done list query");
+  const { cursor, limit } = parsed.data;
+
+  let after: { at: Date; id: string } | undefined;
+  if (cursor !== undefined) {
+    const match = CURSOR.exec(cursor);
+    if (!match) throw new AppError("validation_failed", "Invalid cursor");
+    after = { at: new Date(match[1]!), id: match[2]! };
+  }
+
+  const rows = await ctx.db
+    .select(doneColumns)
+    .from(chores)
+    .where(
+      and(
+        eq(chores.groupId, ctx.groupId),
+        isNotNull(chores.completedAt),
+        after
+          ? or(lt(chores.completedAt, after.at), and(eq(chores.completedAt, after.at), lt(chores.id, after.id)))
+          : undefined,
+      ),
+    )
+    .orderBy(desc(chores.completedAt), desc(chores.id))
+    .limit(limit + 1);
+
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
+  return {
+    chores: page.map(toDoneDto),
+    nextCursor: rows.length > limit && last ? `${last.completedAt!.toISOString()}_${last.id}` : null,
+  };
 }

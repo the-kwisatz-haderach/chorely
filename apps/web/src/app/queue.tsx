@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError, type ChoreDto, type MemberDto } from "@chorely/api-client";
 import { api } from "./api";
+import { DoneList } from "./done-list";
 import { errorMessage } from "./error-message";
 
 function ChoreMeta({ chore, members }: { chore: ChoreDto; members: MemberDto[] }) {
@@ -14,6 +15,9 @@ function ChoreMeta({ chore, members }: { chore: ChoreDto; members: MemberDto[] }
     </>
   );
 }
+
+/** How long the Undo toast stays up after a Chore is completed. */
+const UNDO_MS = 8000;
 
 const LOST_CLAIM = "Someone else got there first, so nothing changed. The Queue has been refreshed.";
 
@@ -76,6 +80,13 @@ export function Queue({
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [undo, setUndo] = useState<{ id: string; title: string }>();
+  const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [showDone, setShowDone] = useState(false);
+  // Bumped on every complete/undo so an open Done list reloads.
+  const [doneVersion, setDoneVersion] = useState(0);
+
+  useEffect(() => () => clearTimeout(undoTimer.current), []);
 
   useEffect(() => {
     api
@@ -128,6 +139,27 @@ export function Queue({
     }
   }
 
+  function dismissUndo() {
+    clearTimeout(undoTimer.current);
+    setUndo(undefined);
+  }
+
+  async function complete(chore: ChoreDto) {
+    await runAndRefetch(async () => {
+      await api.completeChore(groupId, chore.id);
+      setUndo({ id: chore.id, title: chore.title });
+      clearTimeout(undoTimer.current);
+      undoTimer.current = setTimeout(() => setUndo(undefined), UNDO_MS);
+    });
+    setDoneVersion((v) => v + 1);
+  }
+
+  async function undoComplete(id: string) {
+    dismissUndo();
+    await runAndRefetch(() => api.undoCompleteChore(groupId, id));
+    setDoneVersion((v) => v + 1);
+  }
+
   const actions = (chore: ChoreDto) => (
     <ChoreActions
       chore={chore}
@@ -157,6 +189,14 @@ export function Queue({
           {next.note && <p>{next.note}</p>}
           <ChoreMeta chore={next} members={members} />
           {actions(next)}
+          <button
+            disabled={busy}
+            onClick={() => void complete(next)}
+            aria-label={`Complete ${next.title}`}
+            style={{ display: "block", width: "100%", padding: "16px", fontSize: "1.25rem", marginTop: 12 }}
+          >
+            Complete
+          </button>
         </article>
       )}
       {rest.length > 0 && (
@@ -216,7 +256,18 @@ export function Queue({
           + Add a Chore
         </button>
       )}
+      {undo && (
+        <div role="status" style={{ position: "fixed", left: 24, bottom: 24, padding: "12px 20px", background: "#222", color: "#fff" }}>
+          Completed {undo.title}{" "}
+          <button onClick={() => void undoComplete(undo.id)} aria-label={`Undo completing ${undo.title}`}>
+            Undo
+          </button>
+        </div>
+      )}
       {error && <p role="alert">{error}</p>}
+
+      <button onClick={() => setShowDone((v) => !v)}>{showDone ? "Hide Done list" : "Show Done list"}</button>
+      {showDone && <DoneList groupId={groupId} members={members} version={doneVersion} />}
     </section>
   );
 }

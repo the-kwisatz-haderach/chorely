@@ -1,0 +1,21 @@
+import { type DoneListResponse } from "@chorely/api-client";
+import { getDeps } from "@/server/deps";
+import { getDoneList } from "@/server/groups/chores";
+import { requireMember } from "@/server/groups/context";
+import { handle, json } from "@/server/http";
+
+export const dynamic = "force-dynamic";
+
+type Ctx = { params: Promise<{ groupId: string }> };
+
+export function GET(req: Request, { params }: Ctx): Promise<Response> {
+  return handle(async () => {
+    const ctx = await requireMember(getDeps(), req, (await params).groupId);
+    const url = new URL(req.url);
+    const body: DoneListResponse = await getDoneList(ctx, {
+      cursor: url.searchParams.get("cursor") ?? undefined,
+      limit: url.searchParams.get("limit") ?? undefined,
+    });
+    return ctx.withSession(json(body));
+  });
+}

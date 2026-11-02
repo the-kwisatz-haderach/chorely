@@ -45,6 +45,14 @@ A Member taking an unassigned Chore, which makes them its Assignee.
 Any Member can also assign or reassign a Chore to any Member, or unassign it. The Assignee can **unclaim** a Chore to make it unassigned again.
 _Avoid_: Pick up, grab
 
+**Complete**:
+Any Member marking a Chore done, recording who completed it and when. The Chore leaves the Queue but keeps its Position, so **Undo** (a short client-side window right after) puts it back in its place. Once that window has passed there is no reopen.
+_Avoid_: Finish, close, check off
+
+**Done list**:
+The read-only list of completed Chores, newest first, each with its completer. A completer who has left shows as a "Former member".
+_Avoid_: History, archive
+
 **Recurring Chore**:
 A Chore that comes back into the Queue on a schedule after it is completed.
 _Avoid_: Repeating task, routine

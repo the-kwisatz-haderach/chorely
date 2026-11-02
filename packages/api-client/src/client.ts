@@ -4,6 +4,7 @@ import {
   addChoreResponseSchema,
   groupDetailResponseSchema,
   groupResponseSchema,
+  currentInviteLinkResponseSchema,
   healthResponseSchema,
   inviteLinkResponseSchema,
   listGroupsResponseSchema,
@@ -14,6 +15,7 @@ import {
   type AddChoreBody,
   type AddChoreResponse,
   type CreateGroupBody,
+  type CurrentInviteLinkResponse,
   type GroupDetailResponse,
   type GroupResponse,
   type HealthResponse,
@@ -54,6 +56,7 @@ export interface ApiClient {
   createGroup(body: CreateGroupBody): Promise<GroupResponse>;
   getGroup(groupId: string): Promise<GroupDetailResponse>;
   renameGroup(groupId: string, body: RenameGroupBody): Promise<GroupResponse>;
+  getInviteLink(groupId: string): Promise<CurrentInviteLinkResponse>;
   /** Creates the Group's Invite link, or replaces it so the old one stops working. */
   createInviteLink(groupId: string): Promise<InviteLinkResponse>;
   joinGroup(body: JoinGroupBody): Promise<GroupResponse>;
@@ -114,6 +117,8 @@ export function createApiClient({ baseUrl, fetch, getToken }: ApiClientOptions):
     getGroup: (groupId) => request(`/groups/${encodeURIComponent(groupId)}`, groupDetailResponseSchema),
     renameGroup: (groupId, body) =>
       request(`/groups/${encodeURIComponent(groupId)}`, groupResponseSchema, { method: "PATCH", body }),
+    getInviteLink: (groupId) =>
+      request(`/groups/${encodeURIComponent(groupId)}/invite-link`, currentInviteLinkResponseSchema),
     createInviteLink: (groupId) =>
       request(`/groups/${encodeURIComponent(groupId)}/invite-link`, inviteLinkResponseSchema, { method: "POST", body: {} }),
     joinGroup: (body) => request("/invites/join", groupResponseSchema, { method: "POST", body }),

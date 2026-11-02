@@ -18,10 +18,10 @@ The library would save little, and the code and session tables are plain, so ado
 
 - Signing in with an unknown email creates the Account; a display name is asked once after the first sign-in.
 - Codes are 6 digits, valid 10 minutes, single use, stored hashed, dead after 5 wrong attempts. Sends are rate limited per email and per IP in Postgres. Responses never reveal whether an Account exists.
-- `AUTH_SECRET` keys the code hashes and is required in production. Rotating it invalidates outstanding codes only; sessions are unaffected.
+- `AUTH_SECRET` keys the code hashes and the Invite link encryption, and is required in production. Rotating it invalidates outstanding codes and makes stored Invite links unreadable (replace them); sessions are unaffected.
 - Verify attempts are also capped per email (10 per 10 minutes) across re-requested codes, so asking for a new code does not reset the guess budget.
 - Per-IP limits use the address our own proxy appended to `X-Forwarded-For` (`TRUSTED_PROXY_HOPS`, default 1); a wrong value makes those limits wrong.
 - Email goes through a small `sendEmail` function (Resend to start) so the provider can be swapped.
-- Invite link: one reusable link per Group, random 128-bit token stored hashed, any Member can rotate it. Opening it signs the person in (creating an Account if needed) and only then creates the Member, with the token kept through sign-in. A person already in a Group is blocked in v1.
+- Invite link: one reusable link per Group, random 128-bit token, any Member can rotate it. The token is stored as a hash (how a join finds the Group) and as AES-GCM ciphertext keyed from `AUTH_SECRET`, so any Member can read the link back to copy or share it. Anyone with database access plus `AUTH_SECRET` can read live links; rotating `AUTH_SECRET` makes stored copies unreadable, and a Member replaces the link to repair it. Opening it signs the person in (creating an Account if needed) and only then creates the Member, with the token kept through sign-in. A person already in a Group is blocked in v1.
 - Members can leave but not remove each other. Leaving unassigns open Chores and keeps the Member row anonymized as "Former member"; deleting an Account does the same for all its Groups and hard-deletes the Account. A Group with no remaining Members is deleted.
 - Email change is out of v1.

@@ -38,11 +38,17 @@ test("Invite link: share, join through sign-in, replace, paste on first run", as
   const firstLink = await ada.getByLabel("Invite link").inputValue();
   expect(firstLink).toMatch(/\/join\/[\w-]{22}$/);
 
+  // The link is still there after a reload, for the same Member.
+  await ada.reload();
+  await expect(ada.getByLabel("Invite link")).toHaveValue(firstLink);
+
   // Bob has no Account: opening the link signs him up and joins him in one flow.
   await bob.goto(firstLink);
   await signIn(bob, `e2e-bob-${stamp}@example.com`, "Bob");
   await expect(bob.getByRole("heading", { name: "Flat 4" })).toBeVisible();
   await expect(bob.getByRole("list").filter({ hasText: "Ada" })).toContainText("Bob");
+  // Any Member can copy the same link, not just the one who made it.
+  await expect(bob.getByLabel("Invite link")).toHaveValue(firstLink);
 
   // Ada replaces the link; the old one now explains itself.
   await ada.getByRole("button", { name: "Replace Invite link" }).click();

@@ -115,4 +115,51 @@ describe("Invite links (contract, real Postgres)", () => {
     expect(stored[0]).toMatch(/^[0-9a-f]{64}$/);
     expect(stored[0]).not.toContain(token);
   });
+
+  it("any Member can read the current link back, so it can be copied after a reload", async () => {
+    app = await createTestApp();
+    const ada = await signedIn("ada@example.com", "Ada");
+    const bob = await signedIn("bob@example.com", "Bob");
+    const { group } = await ada.client.createGroup({ name: "Flat 4" });
+    expect(await ada.client.getInviteLink(group.id)).toEqual({ token: null });
+
+    const { token } = await ada.client.createInviteLink(group.id);
+    await bob.client.joinGroup({ token });
+    expect(await ada.client.getInviteLink(group.id)).toEqual({ token });
+    expect(await bob.client.getInviteLink(group.id)).toEqual({ token });
+
+    const replaced = await bob.client.createInviteLink(group.id);
+    expect(await ada.client.getInviteLink(group.id)).toEqual({ token: replaced.token });
+  });
+
+  it("only Members can read the link", async () => {
+    app = await createTestApp();
+    const ada = await signedIn("ada@example.com", "Ada");
+    const bob = await signedIn("bob@example.com", "Bob");
+    const { group } = await ada.client.createGroup({ name: "Flat 4" });
+    await ada.client.createInviteLink(group.id);
+    await expect(bob.client.getInviteLink(group.id)).rejects.toMatchObject({ code: "not_found" });
+    await expect(app.client.getInviteLink(group.id)).rejects.toMatchObject({ code: "unauthenticated" });
+  });
+
+  it("keeps the readable copy encrypted, never the token in the clear", async () => {
+    app = await createTestApp();
+    const ada = await signedIn("ada@example.com", "Ada");
+    const { group } = await ada.client.createGroup({ name: "Flat 4" });
+    const { token } = await ada.client.createInviteLink(group.id);
+    const [ciphertext] = await app.storedInviteCiphertexts();
+    expect(ciphertext).toBeTruthy();
+    expect(ciphertext).not.toContain(token);
+  });
+
+  it("reads back no link when the stored copy cannot be decrypted, and a replace repairs it", async () => {
+    app = await createTestApp();
+    const ada = await signedIn("ada@example.com", "Ada");
+    const { group } = await ada.client.createGroup({ name: "Flat 4" });
+    await ada.client.createInviteLink(group.id);
+    await app.corruptInviteCiphertexts();
+    expect(await ada.client.getInviteLink(group.id)).toEqual({ token: null });
+    const { token } = await ada.client.createInviteLink(group.id);
+    expect(await ada.client.getInviteLink(group.id)).toEqual({ token });
+  });
 });

@@ -68,7 +68,10 @@ export const members = pgTable(
   (t) => [unique("members_group_account_unique").on(t.groupId, t.accountId), index("members_account_id_idx").on(t.accountId)],
 );
 
-/** A Group's one Invite link. Only the hash of the token is stored; replacing the link overwrites the hash. */
+/**
+ * A Group's one Invite link. The hash is how a join finds the Group; `tokenCiphertext` (AES-GCM, keyed from
+ * `AUTH_SECRET`) lets any Member read the link back. Replacing the link overwrites both. Null means no readable copy.
+ */
 export const inviteLinks = pgTable(
   "invite_links",
   {
@@ -76,6 +79,7 @@ export const inviteLinks = pgTable(
       .primaryKey()
       .references(() => groups.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull(),
+    tokenCiphertext: text("token_ciphertext"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique("invite_links_token_hash_unique").on(t.tokenHash)],

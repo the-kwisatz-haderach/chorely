@@ -27,6 +27,15 @@ export function GroupScreen() {
       .catch((err: unknown) => setError(errorMessage(err)));
   }, []);
 
+  const groupId = state.name === "ready" ? state.detail.group.id : undefined;
+  useEffect(() => {
+    if (!groupId) return;
+    api
+      .getInviteLink(groupId)
+      .then(({ token }) => setInviteToken(token ?? undefined))
+      .catch((err: unknown) => setError(errorMessage(err)));
+  }, [groupId]);
+
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError(undefined);

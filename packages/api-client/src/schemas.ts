@@ -73,6 +73,10 @@ export const inviteTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{22}$/);
 export const inviteLinkResponseSchema = z.object({ token: inviteTokenSchema });
 export type InviteLinkResponse = z.infer<typeof inviteLinkResponseSchema>;
 
+/** The Group's current Invite link token, or null when it has none yet. */
+export const currentInviteLinkResponseSchema = z.object({ token: inviteTokenSchema.nullable() });
+export type CurrentInviteLinkResponse = z.infer<typeof currentInviteLinkResponseSchema>;
+
 export const joinGroupBodySchema = z.object({ token: z.string() });
 export type JoinGroupBody = z.input<typeof joinGroupBodySchema>;
 

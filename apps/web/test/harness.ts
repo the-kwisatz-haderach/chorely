@@ -63,6 +63,9 @@ export interface TestApp {
   storedCodeHashes(): Promise<string[]>;
   storedSessionKeys(): Promise<string[]>;
   storedInviteHashes(): Promise<string[]>;
+  storedInviteCiphertexts(): Promise<(string | null)[]>;
+  /** Simulates a rotated secret or damaged row: the stored copy no longer decrypts. */
+  corruptInviteCiphertexts(): Promise<void>;
   tableCounts(): Promise<{ loginCodes: number; sessions: number; rateLimits: number }>;
   insertAccount(email: string): Promise<void>;
   countAccounts(): Promise<number>;
@@ -139,6 +142,12 @@ export async function createTestApp(): Promise<TestApp> {
     },
     async storedInviteHashes() {
       return (await db.select({ h: inviteLinks.tokenHash }).from(inviteLinks)).map((r) => r.h);
+    },
+    async storedInviteCiphertexts() {
+      return (await db.select({ c: inviteLinks.tokenCiphertext }).from(inviteLinks)).map((r) => r.c);
+    },
+    async corruptInviteCiphertexts() {
+      await db.update(inviteLinks).set({ tokenCiphertext: "garbage" });
     },
     async tableCounts() {
       const n = async (table: typeof loginCodes | typeof sessions | typeof rateLimits) =>

@@ -10,6 +10,8 @@ import { findMemberId, groupNotFound } from "./data";
  */
 export interface MemberContext {
   db: Database;
+  /** Key material for sealing secrets we must show again (see `auth/seal.ts`). */
+  authSecret: string;
   account: AccountDto;
   memberId: string;
   groupId: string;
@@ -23,5 +25,5 @@ export async function requireMember(deps: Deps, req: Request, groupId: string): 
   if (!groupIdSchema.safeParse(groupId).success) throw groupNotFound();
   const memberId = await findMemberId(deps.db, groupId, account.id);
   if (!memberId) throw groupNotFound();
-  return { db: deps.db, account, memberId, groupId, withSession };
+  return { db: deps.db, authSecret: deps.authSecret, account, memberId, groupId, withSession };
 }

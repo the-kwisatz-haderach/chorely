@@ -6,4 +6,4 @@ Chorely's data is relational and ordering-heavy: Groups, Accounts, Members (many
 
 - Primary keys are app-generated UUIDv7; schema and migrations use Drizzle with checked-in SQL migrations.
 - Group isolation is enforced in the app through a single data-access module, not row-level security.
-- Hosting, region and SLA for the database are decided separately.
+- Hosting, region and SLA for the database are decided in ADR 0006.

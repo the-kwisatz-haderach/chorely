@@ -1,6 +1,11 @@
 variable "name" {
   description = "Environment name (staging or prod). Also the GitHub Environment allowed to deploy it."
   type        = string
+
+  validation {
+    condition     = contains(["staging", "prod"], var.name)
+    error_message = "name must be staging or prod."
+  }
 }
 
 variable "project_id" {
@@ -19,16 +24,6 @@ variable "sql_instance_name" {
 variable "sql_connection_name" {
   description = "project:region:instance, mounted as a Unix socket under /cloudsql."
   type        = string
-}
-
-variable "min_instances" {
-  type    = number
-  default = 0
-}
-
-variable "max_instances" {
-  type    = number
-  default = 3
 }
 
 variable "domain" {

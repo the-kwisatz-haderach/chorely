@@ -2,9 +2,7 @@ locals {
   service_name = "chorely-${var.name}"
   # Runs until the first CI deploy replaces it; Terraform ignores image changes after that.
   placeholder_image = "us-docker.pkg.dev/cloudrun/container/hello"
-  # Containers only: values are added out-of-band (see infra/README.md), never in code or state.
-  secrets = toset(["db-password", "auth-secret", "resend-api-key"])
-  db_name = "chorely_${var.name}"
+  db_name           = "chorely_${var.name}"
 
   # postgres-js cannot take a socket path in the URL, so the URL names only the database and
   # the socket, user and password come from the PG* variables it falls back to.
@@ -19,6 +17,8 @@ locals {
     AUTH_SECRET    = "auth-secret"
     RESEND_API_KEY = "resend-api-key"
   }
+  # Containers only: values are added out-of-band (see infra/README.md), never in code or state.
+  secrets = toset(values(local.secret_env))
 }
 
 resource "google_sql_database" "app" {
@@ -78,9 +78,11 @@ resource "google_cloud_run_v2_service" "app" {
   template {
     service_account = google_service_account.runtime.email
 
+    # Scale to zero so idle time is free. Two instances per environment, each with a pool of
+    # five, stay within db-f1-micro's 25 connections alongside the migration job.
     scaling {
-      min_instance_count = var.min_instances
-      max_instance_count = var.max_instances
+      min_instance_count = 0
+      max_instance_count = 2
     }
 
     volumes {
@@ -128,7 +130,7 @@ resource "google_cloud_run_v2_service" "app" {
   }
 }
 
-# Run by CI before traffic shifts (#27). CI owns the image and command; Terraform owns access.
+# Run by the deploy workflow before traffic shifts. CI owns the image and command; Terraform owns access.
 resource "google_cloud_run_v2_job" "migrate" {
   project  = var.project_id
   name     = "${local.service_name}-migrate"
@@ -197,7 +199,7 @@ resource "google_cloud_run_v2_service_iam_member" "public" {
   member   = "allUsers"
 }
 
-# Cloud Run domain mapping instead of a load balancer, which would add about $18/month (#7).
+# Cloud Run domain mapping instead of a load balancer, which would add about $18/month (ADR 0006).
 resource "google_cloud_run_domain_mapping" "app" {
   project  = var.project_id
   location = var.region
@@ -212,7 +214,7 @@ resource "google_cloud_run_domain_mapping" "app" {
   }
 }
 
-# CI (#27) impersonates this account through Workload Identity Federation, only from jobs
+# The deploy workflow impersonates this account through Workload Identity Federation, only from jobs
 # running in the GitHub Environment of the same name, so prod inherits that Environment's approval.
 resource "google_service_account" "deployer" {
   project      = var.project_id

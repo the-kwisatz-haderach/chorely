@@ -102,7 +102,7 @@ These statements have not yet been run against a live instance, so check them on
 
 ### 7. GitHub
 
-Create GitHub Environments named `staging` and `prod`, and add required reviewers to `prod`. Each Environment's deployer service account can only be used from jobs running in that Environment. The deploy workflow (#27) needs:
+Create GitHub Environments named `staging` and `prod`, and add required reviewers to `prod`. Each Environment's deployer service account can only be used from jobs running in that Environment, so the job that builds and pushes the image must run in `staging`. The deploy workflow (#27) needs:
 
 - `workload_identity_provider`: `terraform output github_provider_name` in `envs/shared`
 - `service_account`: `terraform output deployer_service_account` in each environment root

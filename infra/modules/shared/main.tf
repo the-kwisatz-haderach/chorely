@@ -18,7 +18,7 @@ resource "google_project_service" "enabled" {
 }
 
 # One shared-core instance with a database per environment keeps the fixed cost at about
-# $10/month (#7). Cloud Run connects through the Cloud SQL connector socket, so the public
+# $10/month (ADR 0006). Cloud Run connects through the Cloud SQL connector socket, so the public
 # IP accepts no direct connections (no authorized networks).
 resource "google_sql_database_instance" "main" {
   project             = var.project_id
@@ -99,9 +99,9 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   attribute_condition                = "assertion.repository == \"${var.github_repository}\""
 
   attribute_mapping = {
-    "google.subject"        = "assertion.sub"
-    "attribute.repository"  = "assertion.repository"
-    "attribute.environment" = "assertion.environment"
+    "google.subject" = "assertion.sub"
+    # GitHub only sends the environment claim for jobs that declare one.
+    "attribute.environment" = "has(assertion.environment) ? assertion.environment : \"none\""
   }
 
   oidc {

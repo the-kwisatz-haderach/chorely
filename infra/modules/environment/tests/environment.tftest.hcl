@@ -22,7 +22,7 @@ variables {
   push_images         = true
 }
 
-run "cloud_run_scales_to_zero_and_caps_at_three" {
+run "cloud_run_scales_to_zero_and_caps_at_two" {
   command = plan
 
   assert {
@@ -31,8 +31,8 @@ run "cloud_run_scales_to_zero_and_caps_at_three" {
   }
 
   assert {
-    condition     = google_cloud_run_v2_service.app.template[0].scaling[0].max_instance_count == 3
-    error_message = "The service must cap at three instances."
+    condition     = google_cloud_run_v2_service.app.template[0].scaling[0].max_instance_count == 2
+    error_message = "Two instances per environment keep both environments within db-f1-micro's connection limit."
   }
 }
 
@@ -229,4 +229,14 @@ run "email_sender_is_set_when_given" {
     condition     = contains([for e in google_cloud_run_v2_service.app.template[0].containers[0].env : "${e.name}=${coalesce(e.value, "-")}"], "EMAIL_FROM=Chorely <login@chorely.example>")
     error_message = "EMAIL_FROM must reach the app so mail is sent from a verified domain."
   }
+}
+
+run "rejects_unknown_environment_names" {
+  command = plan
+
+  variables {
+    name = "dev"
+  }
+
+  expect_failures = [var.name]
 }

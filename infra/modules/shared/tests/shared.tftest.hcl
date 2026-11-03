@@ -62,7 +62,7 @@ run "github_federation_trusts_only_this_repository" {
   }
 
   assert {
-    condition     = google_iam_workload_identity_pool_provider.github.attribute_mapping["attribute.environment"] == "assertion.environment"
-    error_message = "Environments bind deployers by GitHub Environment, so it must be mapped."
+    condition     = google_iam_workload_identity_pool_provider.github.attribute_mapping["attribute.environment"] == "has(assertion.environment) ? assertion.environment : \"none\""
+    error_message = "Deployers bind by GitHub Environment, and jobs without one must still get a token."
   }
 }

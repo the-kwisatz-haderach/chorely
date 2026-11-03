@@ -51,3 +51,8 @@ variable "email_from" {
   type        = string
   default     = null
 }
+
+variable "image_tagger_role" {
+  description = "Custom role that can move image tags but not push, granted to deployers without push rights."
+  type        = string
+}

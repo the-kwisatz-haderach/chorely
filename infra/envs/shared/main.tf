@@ -50,6 +50,10 @@ output "image_repository" {
   value = module.shared.image_repository
 }
 
+output "image_tagger_role" {
+  value = module.shared.image_tagger_role
+}
+
 output "github_pool_name" {
   value = module.shared.github_pool_name
 }

@@ -2,12 +2,12 @@
 
 Terraform for one GCP project hosting staging and prod (ADR 0006). Applying is manual: CI never runs `terraform apply`. It only checks formatting, validates the roots and runs the module tests.
 
-| Path                        | What it owns                                                                                                                                    |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `modules/shared`            | Project APIs, the Cloud SQL instance, the Artifact Registry repository (keeps 10 images) and the GitHub Workload Identity pool                  |
-| `modules/environment`       | The environment's database and user, secret containers, runtime and deployer service accounts, Cloud Run service, migration job, domain mapping |
-| `envs/shared`               | Root for `modules/shared`; apply it first                                                                                                       |
-| `envs/staging`, `envs/prod` | One root per environment; each reads `envs/shared` outputs from remote state                                                                    |
+| Path                        | What it owns                                                                                                                                                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `modules/shared`            | Project APIs, the Cloud SQL instance, the Artifact Registry repository (keeps 10 images plus `prod*` tags), the image tagger role and the GitHub Workload Identity pool |
+| `modules/environment`       | The environment's database and user, secret containers, runtime and deployer service accounts, Cloud Run service, migration job, domain mapping                         |
+| `envs/shared`               | Root for `modules/shared`; apply it first                                                                                                                               |
+| `envs/staging`, `envs/prod` | One root per environment; each reads `envs/shared` outputs from remote state                                                                                            |
 
 Expected cost is about $15-20/month, mostly the db-f1-micro instance (#7).
 
@@ -106,6 +106,8 @@ Create GitHub Environments named `staging` and `prod`, and add required reviewer
 
 - `workload_identity_provider`: `terraform output github_provider_name` in `envs/shared`
 - `service_account`: `terraform output deployer_service_account` in each environment root
+
+After a successful prod deploy, the workflow tags the deployed image `prod` and moves the previous `prod` tag to `prod-previous`. Registry cleanup keeps the 10 newest images plus anything tagged `prod*`, so prod's image and its rollback target are never deleted. The prod deployer has a tag-only custom role for this and cannot push.
 
 ## Secrets
 

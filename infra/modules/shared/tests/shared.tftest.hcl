@@ -39,11 +39,11 @@ run "registry_keeps_only_the_ten_most_recent_images" {
   }
 
   assert {
-    condition = {
-      for p in google_artifact_registry_repository.images.cleanup_policies : p.action => p
-      }["KEEP"].most_recent_versions[0].keep_count == 10 && {
-      for p in google_artifact_registry_repository.images.cleanup_policies : p.action => p
-    }["DELETE"].condition[0].tag_state == "ANY"
+    condition = anytrue([for p in google_artifact_registry_repository.images.cleanup_policies :
+      p.action == "KEEP" && length(p.most_recent_versions) > 0 && p.most_recent_versions[0].keep_count == 10
+      ]) && anytrue([for p in google_artifact_registry_repository.images.cleanup_policies :
+      p.action == "DELETE" && p.condition[0].tag_state == "ANY"
+    ])
     error_message = "Everything but the ten most recent images is deleted."
   }
 }
@@ -64,5 +64,29 @@ run "github_federation_trusts_only_this_repository" {
   assert {
     condition     = google_iam_workload_identity_pool_provider.github.attribute_mapping["attribute.environment"] == "has(assertion.environment) ? assertion.environment : \"none\""
     error_message = "Deployers bind by GitHub Environment, and jobs without one must still get a token."
+  }
+}
+
+run "images_tagged_for_prod_survive_cleanup" {
+  command = plan
+
+  assert {
+    condition = anytrue([for p in google_artifact_registry_repository.images.cleanup_policies :
+      p.action == "KEEP" && length(p.condition) > 0 &&
+      p.condition[0].tag_state == "TAGGED" && tolist(p.condition[0].tag_prefixes) == tolist(["prod"])
+    ])
+    error_message = "The images prod runs and rolls back to (tagged prod and prod-previous) must never be cleaned up."
+  }
+
+  assert {
+    condition = google_project_iam_custom_role.image_tagger.permissions == toset([
+      "artifactregistry.repositories.get",
+      "artifactregistry.versions.get",
+      "artifactregistry.tags.create",
+      "artifactregistry.tags.get",
+      "artifactregistry.tags.list",
+      "artifactregistry.tags.update",
+    ])
+    error_message = "The tagger may move tags but never push images."
   }
 }

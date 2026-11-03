@@ -58,6 +58,7 @@ module "environment" {
   sql_connection_name = data.terraform_remote_state.shared.outputs.sql_connection_name
   github_pool_name    = data.terraform_remote_state.shared.outputs.github_pool_name
   image_repository    = data.terraform_remote_state.shared.outputs.image_repository
+  image_tagger_role   = data.terraform_remote_state.shared.outputs.image_tagger_role
   push_images         = true
   domain              = var.domain
   email_from          = var.email_from

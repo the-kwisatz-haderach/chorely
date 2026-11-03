@@ -61,7 +61,8 @@ resource "google_artifact_registry_repository" "images" {
   format                 = "DOCKER"
   cleanup_policy_dry_run = false
 
-  # KEEP wins over DELETE, so everything but the ten most recent versions is removed.
+  # KEEP wins over DELETE, so everything but the ten most recent versions and the images
+  # prod runs and rolls back to is removed.
   cleanup_policies {
     id     = "delete-all"
     action = "DELETE"
@@ -75,6 +76,16 @@ resource "google_artifact_registry_repository" "images" {
     action = "KEEP"
     most_recent_versions {
       keep_count = 10
+    }
+  }
+
+  # The deploy workflow tags the image prod runs `prod` and the one before it `prod-previous`.
+  cleanup_policies {
+    id     = "keep-prod"
+    action = "KEEP"
+    condition {
+      tag_state    = "TAGGED"
+      tag_prefixes = ["prod"]
     }
   }
 
@@ -107,4 +118,22 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
+}
+
+# Lets the prod deployer move the prod tags without being able to push images.
+resource "google_project_iam_custom_role" "image_tagger" {
+  project     = var.project_id
+  role_id     = "chorelyImageTagger"
+  title       = "Chorely image tagger"
+  description = "Move tags on existing images; cannot push."
+  permissions = [
+    "artifactregistry.repositories.get",
+    "artifactregistry.versions.get",
+    "artifactregistry.tags.create",
+    "artifactregistry.tags.get",
+    "artifactregistry.tags.list",
+    "artifactregistry.tags.update",
+  ]
+
+  depends_on = [google_project_service.enabled]
 }

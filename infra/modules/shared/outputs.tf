@@ -18,3 +18,7 @@ output "github_provider_name" {
   description = "Set as the workload_identity_provider input of google-github-actions/auth."
   value       = google_iam_workload_identity_pool_provider.github.name
 }
+
+output "image_tagger_role" {
+  value = google_project_iam_custom_role.image_tagger.name
+}

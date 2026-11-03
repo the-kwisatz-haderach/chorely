@@ -20,6 +20,7 @@ variables {
   github_pool_name    = "projects/123/locations/global/workloadIdentityPools/github"
   image_repository    = "chorely"
   push_images         = true
+  image_tagger_role   = "projects/chorely-test/roles/chorelyImageTagger"
 }
 
 run "cloud_run_scales_to_zero_and_caps_at_two" {
@@ -196,6 +197,11 @@ run "only_the_matching_github_environment_can_deploy" {
     )
     error_message = "Staging builds and pushes the image."
   }
+
+  assert {
+    condition     = length(google_artifact_registry_repository_iam_member.deployer_tag) == 0
+    error_message = "Staging can already tag through its push rights."
+  }
 }
 
 run "prod_deploys_the_pushed_image_without_push_rights" {
@@ -210,6 +216,15 @@ run "prod_deploys_the_pushed_image_without_push_rights" {
   assert {
     condition     = length(google_artifact_registry_repository_iam_member.deployer_push) == 0
     error_message = "Prod promotes the staging digest, so it never pushes."
+  }
+
+  assert {
+    condition = (
+      length(google_artifact_registry_repository_iam_member.deployer_tag) == 1 &&
+      google_artifact_registry_repository_iam_member.deployer_tag[0].repository == "chorely" &&
+      google_artifact_registry_repository_iam_member.deployer_tag[0].role == "projects/chorely-test/roles/chorelyImageTagger"
+    )
+    error_message = "Prod tags the image it deploys so cleanup keeps it."
   }
 
   assert {

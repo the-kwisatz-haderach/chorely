@@ -25,3 +25,4 @@ pnpm dev                 # http://localhost:3000, health at /api/v1/health
 - `packages/api-client`: zod schemas, error codes and the typed fetch client (ADR 0004).
 - `packages/domain`: pure TypeScript domain logic, no I/O.
 - `tooling`: tests for repo tooling (the purity and styling lint rules).
+- `infra`: Terraform for GCP (Cloud Run, Cloud SQL), applied by hand. See `infra/README.md` and ADR 0006.

@@ -115,6 +115,73 @@ describe("Recurring Chores (contract, real Postgres)", () => {
     expect((await ada.getQueue(group.id)).chores).toEqual([skipped.next]);
   });
 
+  it("refuses to Undo once the next Occurrence was edited, keeping that edit", async () => {
+    const { ada, bob, group } = await setup();
+    const { chore } = await ada.addChore(group.id, { title: "Bins", recurrence: weekly });
+    const { next } = await ada.completeChore(group.id, chore.id);
+    const edited = await bob.updateChore(group.id, next!.id, { note: "Blue bag" });
+    await expect(ada.undoCompleteChore(group.id, chore.id)).rejects.toMatchObject({
+      code: "conflict",
+      status: 409,
+      message: "The next Occurrence was changed, so this can't be undone",
+    });
+    expect((await ada.getQueue(group.id)).chores).toEqual([edited.chore]);
+  });
+
+  it("refuses to Undo once the next Occurrence was assigned, but not after an empty edit", async () => {
+    const { ada, bob, group, bobId } = await setup();
+    const { chore } = await ada.addChore(group.id, { title: "Bins", recurrence: weekly });
+    const first = await ada.completeChore(group.id, chore.id);
+    await bob.updateChore(group.id, first.next!.id, {});
+    await ada.undoCompleteChore(group.id, chore.id);
+
+    const second = await ada.completeChore(group.id, chore.id);
+    await ada.assignChore(group.id, second.next!.id, { assigneeId: bobId });
+    await expect(ada.undoCompleteChore(group.id, chore.id)).rejects.toMatchObject({ code: "conflict", status: 409 });
+    expect((await ada.getQueue(group.id)).chores).toMatchObject([{ id: second.next!.id, assigneeId: bobId }]);
+  });
+
+  it("refuses to Undo once the next Occurrence was moved", async () => {
+    const { ada, bob, group } = await setup();
+    const { chore: dishes } = await ada.addChore(group.id, { title: "Dishes" });
+    const { chore } = await ada.addChore(group.id, { title: "Bins", recurrence: weekly });
+    const { next } = await ada.completeChore(group.id, chore.id);
+    await bob.moveChore(group.id, next!.id, { beforeId: dishes.id });
+    await expect(ada.undoCompleteChore(group.id, chore.id)).rejects.toMatchObject({ code: "conflict", status: 409 });
+    expect((await ada.getQueue(group.id)).chores.map((c) => c.id)).toEqual([next!.id, dishes.id]);
+  });
+
+  it("refuses to Undo once the next Occurrence was claimed, even if it was unclaimed again", async () => {
+    const { ada, bob, group } = await setup();
+    const { chore } = await ada.addChore(group.id, { title: "Bins", recurrence: weekly });
+    const { next } = await ada.completeChore(group.id, chore.id);
+    await bob.claimChore(group.id, next!.id);
+    await expect(ada.undoCompleteChore(group.id, chore.id)).rejects.toMatchObject({ code: "conflict", status: 409 });
+    await bob.unclaimChore(group.id, next!.id);
+    await expect(ada.undoCompleteChore(group.id, chore.id)).rejects.toMatchObject({ code: "conflict", status: 409 });
+    expect((await ada.getQueue(group.id)).chores.map((c) => c.id)).toEqual([next!.id]);
+  });
+
+  it("refuses to Undo once the next Occurrence was made a one-off with Stop repeating", async () => {
+    const { ada, group } = await setup();
+    const { chore } = await ada.addChore(group.id, { title: "Bins", recurrence: weekly });
+    const { next } = await ada.completeChore(group.id, chore.id);
+    const stopped = await ada.updateChore(group.id, next!.id, { recurrence: null });
+    await expect(ada.undoCompleteChore(group.id, chore.id)).rejects.toMatchObject({ code: "conflict", status: 409 });
+    expect((await ada.getQueue(group.id)).chores).toEqual([stopped.chore]);
+  });
+
+  it("still Undoes after the next Occurrence's Assignee left the Group", async () => {
+    const { ada, bob, group, bobId } = await setup();
+    const { chore } = await ada.addChore(group.id, { title: "Bins", recurrence: { ...weekly, assigneeId: bobId } });
+    const { next } = await ada.completeChore(group.id, chore.id);
+    expect(next!.assigneeId).toBe(bobId);
+    await bob.leaveGroup(group.id, {});
+    const undone = await ada.undoCompleteChore(group.id, chore.id);
+    expect(undone.chore.id).toBe(chore.id);
+    expect((await ada.getQueue(group.id)).chores.map((c) => c.id)).toEqual([chore.id]);
+  });
+
   it("still completes when a client sends no body, as before `today` existed", async () => {
     app = await createTestApp();
     const email = "ada@example.com";

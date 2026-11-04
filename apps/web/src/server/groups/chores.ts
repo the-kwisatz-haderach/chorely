@@ -1,5 +1,5 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
-import { nextDueDate, positionBetween, seedPosition, type Weekday } from "@chorely/domain";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { positionBetween, seedPosition } from "@chorely/domain";
 import {
   choreIdSchema,
   deleteChoreQuerySchema,
@@ -22,6 +22,8 @@ import { AppError } from "../http";
 import { newId } from "../ids";
 import type { MemberContext } from "./context";
 import { groupNotFound } from "./data";
+import { openQueue, queueOrder, reverseQueueOrder, type Tx } from "./queue";
+import { beforeUndo, localToday, onComplete, onSkip, stop, toRecurrenceDto } from "./recurring";
 
 /** Chore data access. Every Chore mutation bumps the Group revision in the same transaction. */
 
@@ -37,10 +39,6 @@ const choreColumns = {
 };
 
 type ChoreRow = Omit<ChoreDto, "recurrence"> & { recurrenceId: string | null };
-
-/** Queue order: `(position, id)`, with keys compared byte-wise. */
-const queueOrder = [asc(sql`${chores.position} collate "C"`), asc(chores.id)];
-const reverseQueueOrder = [desc(sql`${chores.position} collate "C"`), desc(chores.id)];
 
 /** The open Chores of the Group in Queue order: `(position, id)`, byte-wise. */
 export async function getQueue(ctx: MemberContext): Promise<QueueResponse> {
@@ -61,17 +59,6 @@ export async function getRevision(ctx: MemberContext): Promise<RevisionResponse>
   const [group] = await ctx.db.select({ revision: groups.revision }).from(groups).where(eq(groups.id, ctx.groupId));
   if (!group) throw groupNotFound();
   return group;
-}
-
-type Tx = Parameters<Parameters<MemberContext["db"]["transaction"]>[0]>[0];
-
-/** The open Chores' keys and Due dates in Queue order, for seeding a new Chore's Position. */
-function openQueue(tx: Tx, ctx: MemberContext) {
-  return tx
-    .select({ position: chores.position, dueDate: chores.dueDate })
-    .from(chores)
-    .where(and(eq(chores.groupId, ctx.groupId), isNull(chores.completedAt)))
-    .orderBy(...queueOrder);
 }
 
 export async function addChore(ctx: MemberContext, input: AddChoreInput): Promise<AddChoreResponse> {
@@ -115,13 +102,6 @@ async function oneWithRecurrence<R extends { recurrenceId: string | null }>(db: 
   return dto!;
 }
 
-function toRecurrenceDto(r: typeof recurrences.$inferSelect): RecurrenceDto {
-  const common = { every: r.every, anchor: r.anchor, assigneeId: r.assigneeId };
-  if (r.unit === "week") return { unit: "week", weekdays: (r.weekdays ?? []) as Weekday[], ...common };
-  if (r.unit === "month") return { unit: "month", dayOfMonth: r.dayOfMonth ?? 1, ...common };
-  return { unit: "day", ...common };
-}
-
 function recurrenceColumns(r: RecurrenceDto) {
   return {
     unit: r.unit,
@@ -139,49 +119,6 @@ async function insertRecurrence(tx: Tx, ctx: MemberContext, recurrence: Recurren
   const id = newId();
   await tx.insert(recurrences).values({ id, groupId: ctx.groupId, ...recurrenceColumns(recurrence) });
   return id;
-}
-
-/**
- * The Member's local date, which a next Occurrence's Due date counts from. Time zones put it at most a day either
- * side of the server's UTC date; without one, that UTC date is used.
- */
-function localToday(ctx: MemberContext, today: string | undefined): string {
-  const utc = ctx.now().toISOString().slice(0, 10);
-  if (today === undefined) return utc;
-  if (Math.abs(Date.parse(today) - Date.parse(utc)) > 86_400_000) {
-    throw new AppError("validation_failed", "today must be your local date");
-  }
-  return today;
-}
-
-/**
- * Creates the next Occurrence after `previous` was completed or skipped: same title and note, the next Due date,
- * the series' fixed Assignee (or none), placed by the usual Due-date seeding with no memory of the old Position.
- * One created by completing `previous` links back to it, so undoing that completion can remove it.
- */
-async function createNextOccurrence(
-  tx: Tx,
-  ctx: MemberContext,
-  previous: ChoreRow & { recurrenceId: string },
-  today: string,
-  createdBy: "completion" | "skip",
-): Promise<ChoreDto> {
-  const [row] = await tx.select().from(recurrences).where(eq(recurrences.id, previous.recurrenceId));
-  if (!row) throw new Error("An Occurrence points at a missing schedule");
-  const recurrence = toRecurrenceDto(row);
-  const dueDate = nextDueDate(recurrence, { dueDate: previous.dueDate, today });
-  const next = {
-    id: newId(),
-    title: previous.title,
-    note: previous.note,
-    dueDate,
-    assigneeId: recurrence.assigneeId,
-    position: seedPosition(await openQueue(tx, ctx), { dueDate }),
-  };
-  await tx
-    .insert(chores)
-    .values({ ...next, groupId: ctx.groupId, recurrenceId: previous.recurrenceId, previousOccurrenceId: createdBy === "completion" ? previous.id : null });
-  return { ...next, recurrence };
 }
 
 /** Bumps the Group revision. As the first write of a mutation it also takes the Group row lock. */
@@ -212,49 +149,29 @@ function alreadyDone(): AppError {
   return new AppError("conflict", "This Chore is already done");
 }
 
-/**
- * Runs an Assignee change on one Chore. Bumping the revision first takes the Group row lock, so competing
- * Claims run one after another and `change` sees the Chore as the previous winner left it. Throwing from
- * `change` rolls the bump back.
- */
-async function changeAssignee(
-  ctx: MemberContext,
-  choreId: string,
-  change: (tx: Tx, chore: ChoreRow) => Promise<string | null>,
-): Promise<ChoreResponse> {
-  return ctx.db.transaction(async (tx) => {
-    const group = await bumpRevision(tx, ctx);
-    const chore = await requireOpenChore(tx, ctx, choreId);
-    const assigneeId = await change(tx, chore);
-    await tx.update(chores).set({ assigneeId }).where(eq(chores.id, choreId));
-    const dto = await oneWithRecurrence(tx, { ...chore, assigneeId });
-    return { chore: dto, revision: group.revision };
-  });
-}
-
 /** Takes an unassigned Chore. A lost race, or a Chore someone else holds, is a `conflict`. */
 export function claimChore(ctx: MemberContext, choreId: string): Promise<ChoreResponse> {
-  return changeAssignee(ctx, choreId, async (_tx, chore) => {
+  return changeOpenChore(ctx, choreId, async (_tx, chore) => {
     if (chore.assigneeId && chore.assigneeId !== ctx.memberId) {
       throw new AppError("conflict", "Someone else already claimed this Chore");
     }
-    return ctx.memberId;
+    return { assigneeId: ctx.memberId };
   });
 }
 
 /** Gives up a Chore the caller holds. */
 export function unclaimChore(ctx: MemberContext, choreId: string): Promise<ChoreResponse> {
-  return changeAssignee(ctx, choreId, async (_tx, chore) => {
+  return changeOpenChore(ctx, choreId, async (_tx, chore) => {
     if (chore.assigneeId !== ctx.memberId) throw new AppError("conflict", "You are not assigned to this Chore");
-    return null;
+    return { assigneeId: null };
   });
 }
 
 /** Assigns or reassigns the Chore to any Member of the Group, or unassigns it with null. */
 export function assignChore(ctx: MemberContext, choreId: string, assigneeId: string | null): Promise<ChoreResponse> {
-  return changeAssignee(ctx, choreId, async (tx) => {
+  return changeOpenChore(ctx, choreId, async (tx) => {
     if (assigneeId) await requireAssignee(tx, ctx, assigneeId);
-    return assigneeId;
+    return { assigneeId };
   });
 }
 
@@ -271,23 +188,45 @@ async function requireOpenChore(tx: Tx, ctx: MemberContext, choreId: string): Pr
   return dto;
 }
 
+/** The columns a Member's change to an open Chore may set. */
+type ChoreChanges = Partial<Pick<typeof chores.$inferInsert, "title" | "note" | "dueDate" | "assigneeId" | "position" | "recurrenceId">>;
+
+/**
+ * Runs a Member's change to one open Chore: assign, claim, unclaim, edit or move. Bumping the revision first takes
+ * the Group row lock, so competing changes run one after another and `change` sees the Chore as the previous winner
+ * left it; throwing from `change` rolls the bump back. The Chore is marked `changed`, so an Undo of the completion
+ * that created it as the next Occurrence will not delete it.
+ */
+async function changeOpenChore(
+  ctx: MemberContext,
+  choreId: string,
+  change: (tx: Tx, chore: ChoreRow) => Promise<ChoreChanges>,
+): Promise<ChoreResponse> {
+  return ctx.db.transaction(async (tx) => {
+    const group = await bumpRevision(tx, ctx);
+    const chore = await requireOpenChore(tx, ctx, choreId);
+    const changes = await change(tx, chore);
+    // An edit with nothing in it changes nothing, so it leaves the Chore for Undo to take back.
+    if (Object.keys(changes).length > 0) await tx.update(chores).set({ ...changes, changed: true }).where(eq(chores.id, choreId));
+    const dto = await oneWithRecurrence(tx, { ...chore, ...changes });
+    return { chore: dto, revision: group.revision };
+  });
+}
+
 /**
  * Edits an open Chore for any Member. Only the fields present change, and `position` is never touched, so a
- * new Due date does not move the Chore. Bumping the revision first takes the Group row lock.
+ * new Due date does not move the Chore.
  *
  * A `recurrence` changes the shared schedule, which only the next Occurrences use. Null is "Stop repeating": the
  * schedule is deleted, so this and every past Occurrence become one-offs.
  */
-export async function updateChore(ctx: MemberContext, choreId: string, input: UpdateChoreInput): Promise<ChoreResponse> {
-  return ctx.db.transaction(async (tx) => {
-    const group = await bumpRevision(tx, ctx);
-    const chore = await requireOpenChore(tx, ctx, choreId);
-
+export function updateChore(ctx: MemberContext, choreId: string, input: UpdateChoreInput): Promise<ChoreResponse> {
+  return changeOpenChore(ctx, choreId, async (tx, chore) => {
     if (input.assigneeId) await requireAssignee(tx, ctx, input.assigneeId);
 
     let recurrenceId = chore.recurrenceId;
     if (input.recurrence === null && recurrenceId) {
-      await tx.delete(recurrences).where(eq(recurrences.id, recurrenceId));
+      await stop(tx, recurrenceId);
       recurrenceId = null;
     } else if (input.recurrence && recurrenceId) {
       if (input.recurrence.assigneeId) await requireAssignee(tx, ctx, input.recurrence.assigneeId);
@@ -296,16 +235,13 @@ export async function updateChore(ctx: MemberContext, choreId: string, input: Up
       recurrenceId = await insertRecurrence(tx, ctx, input.recurrence);
     }
 
-    const changes = {
+    return {
       ...(input.title !== undefined && { title: input.title }),
       ...(input.note !== undefined && { note: input.note }),
       ...(input.dueDate !== undefined && { dueDate: input.dueDate }),
       ...(input.assigneeId !== undefined && { assigneeId: input.assigneeId }),
       ...(recurrenceId !== chore.recurrenceId && { recurrenceId }),
     };
-    if (Object.keys(changes).length > 0) await tx.update(chores).set(changes).where(eq(chores.id, choreId));
-    const dto = await oneWithRecurrence(tx, { ...chore, ...changes });
-    return { chore: dto, revision: group.revision };
   });
 }
 
@@ -374,17 +310,14 @@ async function keyBetweenAnchors(tx: Tx, ctx: MemberContext, movingId: string, i
 /**
  * Moves an open Chore and generates its new key (ADR 0002). Omitting `afterId` moves it to the front of the
  * Queue and omitting `beforeId` to the back, whatever the Queue looks like now; with both it goes between them.
- * Bumping the revision first takes the Group row lock, so concurrent moves of one Chore are last-write-wins.
+ * Concurrent moves of one Chore are last-write-wins.
  */
 export async function moveChore(ctx: MemberContext, choreId: string, input: MoveChoreInput): Promise<ChoreResponse> {
   const { afterId, beforeId } = input;
   if (afterId === choreId || beforeId === choreId) {
     throw new AppError("validation_failed", "A Chore cannot be anchored on itself");
   }
-  return ctx.db.transaction(async (tx) => {
-    const group = await bumpRevision(tx, ctx);
-    const chore = await requireOpenChore(tx, ctx, choreId);
-
+  return changeOpenChore(ctx, choreId, async (tx) => {
     let position: string | undefined;
     if (afterId && beforeId) {
       position = await keyBetweenAnchors(tx, ctx, choreId, { afterId, beforeId });
@@ -396,10 +329,7 @@ export async function moveChore(ctx: MemberContext, choreId: string, input: Move
       position = positionBetween(last?.position ?? null, null);
     }
     if (position === undefined) throw queueChanged();
-
-    await tx.update(chores).set({ position }).where(eq(chores.id, choreId));
-    const dto = await oneWithRecurrence(tx, { ...chore, position });
-    return { chore: dto, revision: group.revision };
+    return { position };
   });
 }
 
@@ -421,13 +351,11 @@ export async function deleteChore(
     const chore = await requireOpenChore(tx, ctx, choreId);
     await tx.delete(chores).where(eq(chores.id, choreId));
 
-    let next: ChoreDto | null = null;
     if (chore.recurrenceId && parsed.data.stopRepeating) {
-      await tx.delete(recurrences).where(eq(recurrences.id, chore.recurrenceId));
-    } else if (chore.recurrenceId) {
-      next = await createNextOccurrence(tx, ctx, { ...chore, recurrenceId: chore.recurrenceId }, today, "skip");
+      await stop(tx, chore.recurrenceId);
+      return { revision: group.revision, next: null };
     }
-    return { revision: group.revision, next };
+    return { revision: group.revision, next: await onSkip(tx, ctx, chore, today) };
   });
 }
 
@@ -457,7 +385,7 @@ export async function completeChore(
 
     const [row] = await tx
       .update(chores)
-      .set({ completedAt: new Date(), completedById: ctx.memberId })
+      .set({ completedAt: ctx.now(), completedById: ctx.memberId })
       .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId), isNull(chores.completedAt)))
       .returning(doneColumns);
     if (!row) {
@@ -467,7 +395,7 @@ export async function completeChore(
         .where(and(eq(chores.id, choreId), eq(chores.groupId, ctx.groupId)));
       throw existing ? alreadyDone() : choreNotFound();
     }
-    const next = row.recurrenceId ? await createNextOccurrence(tx, ctx, { ...row, recurrenceId: row.recurrenceId }, today, "completion") : null;
+    const next = await onComplete(tx, ctx, row, today);
     const done = await oneWithRecurrence(tx, toDoneDto(row));
     return { chore: done, next, revision: group.revision };
   });
@@ -475,33 +403,14 @@ export async function completeChore(
 
 /**
  * Reopens a completed Chore at its retained Position. There is no time limit here; the Undo window is client-side.
- * The Occurrence its completion created is deleted first, so the series keeps one open Occurrence. If that one is
- * done too, or was skipped so another is open, the Undo is a `conflict`.
+ * The Occurrence its completion created is deleted first (`beforeUndo`), which may make the Undo a `conflict`.
  */
 export async function undoCompleteChore(ctx: MemberContext, choreId: string): Promise<ChoreResponse> {
   if (!choreIdSchema.safeParse(choreId).success) throw choreNotFound();
   return ctx.db.transaction(async (tx) => {
     const group = await bumpRevision(tx, ctx);
 
-    const [created] = await tx
-      .select({ id: chores.id, completedAt: chores.completedAt })
-      .from(chores)
-      .where(and(eq(chores.previousOccurrenceId, choreId), eq(chores.groupId, ctx.groupId)));
-    if (created?.completedAt) throw new AppError("conflict", "The next Occurrence is already done, so this cannot be undone");
-    if (created) await tx.delete(chores).where(eq(chores.id, created.id));
-
-    // The created Occurrence may have been skipped, so its replacement is the series' open one now.
-    const [series] = await tx
-      .select({ id: chores.id })
-      .from(chores)
-      .where(
-        and(
-          eq(chores.groupId, ctx.groupId),
-          isNull(chores.completedAt),
-          sql`${chores.recurrenceId} = (select ${chores.recurrenceId} from ${chores} where ${chores.id} = ${choreId})`,
-        ),
-      );
-    if (series) throw new AppError("conflict", "A later Occurrence of this Chore is already in the Queue, so this cannot be undone");
+    await beforeUndo(tx, ctx, choreId);
 
     const [chore] = await tx
       .update(chores)

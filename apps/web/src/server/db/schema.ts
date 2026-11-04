@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   date,
   index,
@@ -151,6 +152,8 @@ export const chores = pgTable(
     recurrenceId: uuid("recurrence_id").references(() => recurrences.id, { onDelete: "set null" }),
     /** The Occurrence whose completion created this one, so undoing that completion can remove it. */
     previousOccurrenceId: uuid("previous_occurrence_id").references((): AnyPgColumn => chores.id, { onDelete: "set null" }),
+    /** Set when a Member assigns, claims, unclaims, edits or moves the open Chore, so Undo never deletes their change. */
+    changed: boolean("changed").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

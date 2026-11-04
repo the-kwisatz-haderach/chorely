@@ -83,6 +83,7 @@ run "images_tagged_for_prod_survive_cleanup" {
       "artifactregistry.repositories.get",
       "artifactregistry.versions.get",
       "artifactregistry.tags.create",
+      "artifactregistry.tags.delete",
       "artifactregistry.tags.get",
       "artifactregistry.tags.list",
       "artifactregistry.tags.update",

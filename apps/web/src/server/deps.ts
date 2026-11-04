@@ -20,7 +20,8 @@ function chooseEmail(): SendEmail {
     }
     return fileEmail(outbox);
   }
-  const key = process.env.RESEND_API_KEY;
+  // Trimmed because a stray newline in the secret makes fetch reject the Authorization header.
+  const key = process.env.RESEND_API_KEY?.trim();
   const send = key ? resendEmail(key, process.env.EMAIL_FROM ?? "Chorely <onboarding@resend.dev>") : logEmail;
   // Comma-separated; set on staging (infra/modules/environment) so it only emails testers.
   const allowlist = process.env.EMAIL_ALLOWLIST;

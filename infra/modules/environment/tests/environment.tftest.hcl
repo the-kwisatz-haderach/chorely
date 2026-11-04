@@ -228,6 +228,15 @@ run "prod_deploys_the_pushed_image_without_push_rights" {
   }
 
   assert {
+    condition = (
+      length(google_artifact_registry_repository_iam_member.deployer_read) == 1 &&
+      google_artifact_registry_repository_iam_member.deployer_read[0].repository == "chorely" &&
+      google_artifact_registry_repository_iam_member.deployer_read[0].role == "roles/artifactregistry.reader"
+    )
+    error_message = "Cloud Run only deploys an image the deployer can read, so prod needs read access."
+  }
+
+  assert {
     condition     = google_service_account_iam_member.deployer_federation.member == "principalSet://iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/github/attribute.environment/prod"
     error_message = "Only GitHub jobs in the prod Environment (behind its approval) may deploy prod."
   }

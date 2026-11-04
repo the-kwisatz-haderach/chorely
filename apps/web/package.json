@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=../../.env node_modules/next/dist/bin/next dev",
     "build": "next build",
+    "build:migrate": "esbuild src/server/db/migrate-cli.ts --bundle --platform=node --format=esm --outfile=dist/migrate.mjs",
     "start": "next start",
     "typecheck": "tsc -p .",
     "test": "vitest run",
@@ -31,6 +32,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "drizzle-kit": "^0.28.0",
+    "esbuild": "^0.28.2",
     "tsx": "^4.19.0",
     "vite": "^5.4.21",
     "vitest": "^2.1.0"

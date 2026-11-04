@@ -63,3 +63,14 @@ variable "db_password" {
   default     = null
   ephemeral   = true
 }
+
+variable "email_allowlist" {
+  description = "Staging only: the only addresses the app emails, so testers get codes and nobody else gets mail. Must be null for prod."
+  type        = list(string)
+  default     = null
+
+  validation {
+    condition     = var.name == "staging" ? length(coalesce(var.email_allowlist, [])) > 0 : var.email_allowlist == null
+    error_message = "Staging needs a non-empty email_allowlist; prod must not have one."
+  }
+}

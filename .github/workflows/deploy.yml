@@ -1,0 +1,81 @@
+name: Deploy
+
+# Builds one image per green commit on main, deploys it to staging, then deploys the same digest
+# to prod once someone approves the prod GitHub Environment (ADR 0006). Infra changes are applied
+# by hand; this workflow never runs Terraform (infra/README.md).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write # Workload Identity Federation
+
+env:
+  REGION: ${{ vars.GCP_REGION }}
+  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/chorely/chorely
+
+jobs:
+  staging:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    # The staging deployer can only be impersonated from this Environment.
+    environment: staging
+    concurrency: deploy-staging
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.event.workflow_run.head_sha }}
+          # A plain manifest, not an index with an attestation, so the digest is the image itself.
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Migrate and deploy
+        run: .github/scripts/deploy.sh staging "$IMAGE@${{ steps.build.outputs.digest }}"
+
+  prod:
+    needs: staging
+    runs-on: ubuntu-latest
+    # Required reviewers on this Environment are the approval gate.
+    environment: prod
+    concurrency: deploy-prod
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Migrate and deploy the staging digest
+        run: .github/scripts/deploy.sh prod "$IMAGE@${{ needs.staging.outputs.digest }}"
+      # Registry cleanup keeps anything tagged prod* (infra/modules/shared), so prod's image and
+      # its rollback target survive however many staging builds pile up.
+      - name: Tag prod and prod-previous
+        env:
+          DIGEST: ${{ needs.staging.outputs.digest }}
+        run: |
+          previous=$(gcloud artifacts docker images describe "$IMAGE:prod" --format='value(image_summary.digest)' 2>/dev/null || true)
+          if [ -n "$previous" ] && [ "$previous" != "$DIGEST" ]; then
+            gcloud artifacts docker tags add "$IMAGE@$previous" "$IMAGE:prod-previous" --quiet
+          fi
+          gcloud artifacts docker tags add "$IMAGE@$DIGEST" "$IMAGE:prod" --quiet

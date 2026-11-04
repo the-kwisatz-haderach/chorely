@@ -123,6 +123,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 }
 
 # Lets the prod deployer move the prod tags without being able to push images.
+# `gcloud artifacts docker tags add` moves an existing tag by deleting and recreating it.
 resource "google_project_iam_custom_role" "image_tagger" {
   project     = var.project_id
   role_id     = "chorelyImageTagger"
@@ -132,6 +133,7 @@ resource "google_project_iam_custom_role" "image_tagger" {
     "artifactregistry.repositories.get",
     "artifactregistry.versions.get",
     "artifactregistry.tags.create",
+    "artifactregistry.tags.delete",
     "artifactregistry.tags.get",
     "artifactregistry.tags.list",
     "artifactregistry.tags.update",

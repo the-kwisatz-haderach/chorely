@@ -33,8 +33,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm lint # ESLint, then Stylelint
+      - run: pnpm lint # ESLint, then Stylelint, then Prettier on Markdown
       - run: pnpm db:migrate
+      - name: Check infra/sql isolates environments
+        run: infra/sql/test-isolation.sh
+        env:
+          ADMIN_URL: postgres://chorely:chorely@localhost:5432/chorely
       - run: pnpm test
       - run: pnpm --filter @chorely/web exec playwright install --with-deps chromium
       - run: pnpm test:e2e

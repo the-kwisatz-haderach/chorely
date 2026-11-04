@@ -19,19 +19,19 @@ The light theme is the prototype palette (`prototype/queue-screen`): a cream bac
 
 Text needs 4.5:1. The focus ring is a non-text indicator and needs 3:1 against everything it can sit on. `--color-border` is decorative and is not used as the only boundary that identifies a control.
 
-| Pair | Light | Dark |
-| --- | --- | --- |
+| Pair                                                 | Light | Dark  |
+| ---------------------------------------------------- | ----- | ----- |
 | `text` on `bg` (and inverted: toast, offline notice) | 14.10 | 14.70 |
-| `text` on `surface` | 15.91 | 12.90 |
-| `text-muted` on `bg` | 5.99 | 7.95 |
-| `text-muted` on `surface` | 6.76 | 6.98 |
-| `on-primary` on `primary` | 5.99 | 5.99 |
-| `primary` on `on-primary` (Complete button) | 5.99 | 5.99 |
-| `danger` on `bg` | 5.79 | 8.00 |
-| `danger` on `surface` | 6.54 | 7.02 |
-| `focus` against `bg` | 16.33 | 10.83 |
-| `focus` against `surface` | 18.42 | 9.51 |
-| `focus` against `primary` | 3.08 | 3.68 |
+| `text` on `surface`                                  | 15.91 | 12.90 |
+| `text-muted` on `bg`                                 | 5.99  | 7.95  |
+| `text-muted` on `surface`                            | 6.76  | 6.98  |
+| `on-primary` on `primary`                            | 5.99  | 5.99  |
+| `primary` on `on-primary` (Complete button)          | 5.99  | 5.99  |
+| `danger` on `bg`                                     | 5.79  | 8.00  |
+| `danger` on `surface`                                | 6.54  | 7.02  |
+| `focus` against `bg`                                 | 16.33 | 10.83 |
+| `focus` against `surface`                            | 18.42 | 9.51  |
+| `focus` against `primary`                            | 3.08  | 3.68  |
 
 Re-check this table when a palette value or a semantic mapping changes, and add a row for any new pair.
 

@@ -1,5 +1,5 @@
-project_id   = "chorely-123456"
+project_id   = "chorely-513612"
 region       = "europe-north1"
-state_bucket = "chorely-123456-tfstate"
+state_bucket = "chorely-513612-tfstate"
 domain       = "staging.chorely.mogva.dev"
 email_from   = "Chorely <login@chorely.mogva.dev>"

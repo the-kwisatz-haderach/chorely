@@ -24,7 +24,7 @@ terraform test                 # offline: mocked provider, no GCP credentials ne
 Needs `gcloud`, Terraform 1.11+, a GCP project with billing, and Owner on it.
 
 ```sh
-PROJECT=chorely-123456
+PROJECT=chorely-513612
 REGION=europe-north1
 gcloud auth application-default login
 gcloud config set project $PROJECT
@@ -144,7 +144,13 @@ The next deploy moves traffic back to the latest revision. The image prod ran be
 
 ## Staging email
 
-Staging only emails addresses in `email_allowlist` (`envs/staging/terraform.tfvars`) and drops mail to anyone else, logging the recipient but not the code. Terraform refuses to plan staging without it, and the deploy workflow refuses to deploy a staging service that lacks it, so apply `envs/staging` with it before the first deploy. Add testers there and apply.
+Staging only emails addresses in `email_allowlist` and drops mail to anyone else, logging the recipient but not the code. Terraform refuses to plan staging without it, and the deploy workflow refuses to deploy a staging service that lacks it, so apply `envs/staging` with it before the first deploy.
+
+The addresses are personal and this repository is public, so they live in `envs/staging/email.auto.tfvars`, which git ignores and Terraform loads by itself. Create it, then apply:
+
+```hcl
+email_allowlist = ["you@example.com", "tester@example.com"]
+```
 
 ## Secrets
 

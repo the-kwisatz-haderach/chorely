@@ -11,3 +11,5 @@ playwright-report
 .terraform
 *.tfstate
 *.tfstate.backup
+# Personal values such as the staging email allowlist (infra/README.md)
+*.auto.tfvars

@@ -18,8 +18,25 @@ env:
   IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/chorely/chorely
 
 jobs:
-  staging:
+  # CI runs finish in any order, so only deploy the commit main points at now; an older run
+  # finishing late must not roll staging or prod back.
+  latest:
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      is-head: ${{ steps.head.outputs.is-head }}
+    steps:
+      - id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          echo "is-head=$([ "$head" = "$SHA" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  staging:
+    needs: latest
+    if: needs.latest.outputs.is-head == 'true'
     runs-on: ubuntu-latest
     # The staging deployer can only be impersonated from this Environment.
     environment: staging
@@ -74,7 +91,7 @@ jobs:
         env:
           DIGEST: ${{ needs.staging.outputs.digest }}
         run: |
-          previous=$(gcloud artifacts docker images describe "$IMAGE:prod" --format='value(image_summary.digest)' 2>/dev/null || true)
+          previous=$(gcloud artifacts docker tags list "$IMAGE" --filter='tag~/prod$' --format='value(version.basename())')
           if [ -n "$previous" ] && [ "$previous" != "$DIGEST" ]; then
             gcloud artifacts docker tags add "$IMAGE@$previous" "$IMAGE:prod-previous" --quiet
           fi

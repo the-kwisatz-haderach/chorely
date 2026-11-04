@@ -277,7 +277,7 @@ run "prod_emails_everyone" {
 
   assert {
     condition     = !contains([for e in google_cloud_run_v2_service.app.template[0].containers[0].env : e.name], "EMAIL_ALLOWLIST")
-    error_message = "Prod signs in real users, so it has no allowlist."
+    error_message = "Prod signs in everyone, so it has no allowlist."
   }
 }
 

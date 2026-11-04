@@ -5,9 +5,20 @@
 # against the migrated schema (ADR 0006). Needs REGION and gcloud authenticated as the deployer.
 set -euo pipefail
 
-env=$1
+target=$1
 image=$2
-service="chorely-$env"
+service="chorely-$target"
+
+# Terraform sets EMAIL_ALLOWLIST on staging, but applying is manual. Refuse to deploy a staging
+# that could email anyone.
+if [ "$target" = staging ]; then
+  env_names=$(gcloud run services describe "$service" --region="$REGION" \
+    --format='value(spec.template.spec.containers[0].env[].name)')
+  if [[ ";$env_names;" != *";EMAIL_ALLOWLIST;"* ]]; then
+    echo "chorely-staging has no EMAIL_ALLOWLIST; apply infra/envs/staging first (infra/README.md)." >&2
+    exit 1
+  fi
+fi
 
 gcloud run jobs update "$service-migrate" --region="$REGION" --image="$image" \
   --command=node --args=migrate.mjs,drizzle --quiet

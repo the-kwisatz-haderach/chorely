@@ -144,7 +144,7 @@ The next deploy moves traffic back to the latest revision. The image prod ran be
 
 ## Staging email
 
-Staging only emails addresses in `email_allowlist` (`envs/staging/terraform.tfvars`) and drops mail to anyone else, logging the recipient but not the code. Terraform refuses to plan staging without it. Add testers there and apply.
+Staging only emails addresses in `email_allowlist` (`envs/staging/terraform.tfvars`) and drops mail to anyone else, logging the recipient but not the code. Terraform refuses to plan staging without it, and the deploy workflow refuses to deploy a staging service that lacks it, so apply `envs/staging` with it before the first deploy. Add testers there and apply.
 
 ## Secrets
 

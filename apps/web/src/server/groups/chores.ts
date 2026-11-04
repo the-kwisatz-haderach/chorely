@@ -206,7 +206,8 @@ async function changeOpenChore(
     const group = await bumpRevision(tx, ctx);
     const chore = await requireOpenChore(tx, ctx, choreId);
     const changes = await change(tx, chore);
-    await tx.update(chores).set({ ...changes, changed: true }).where(eq(chores.id, choreId));
+    // An edit with nothing in it changes nothing, so it leaves the Chore for Undo to take back.
+    if (Object.keys(changes).length > 0) await tx.update(chores).set({ ...changes, changed: true }).where(eq(chores.id, choreId));
     const dto = await oneWithRecurrence(tx, { ...chore, ...changes });
     return { chore: dto, revision: group.revision };
   });

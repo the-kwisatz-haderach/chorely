@@ -128,6 +128,19 @@ describe("Recurring Chores (contract, real Postgres)", () => {
     expect((await ada.getQueue(group.id)).chores).toEqual([edited.chore]);
   });
 
+  it("refuses to Undo once the next Occurrence was assigned, but not after an empty edit", async () => {
+    const { ada, bob, group, bobId } = await setup();
+    const { chore } = await ada.addChore(group.id, { title: "Bins", recurrence: weekly });
+    const first = await ada.completeChore(group.id, chore.id);
+    await bob.updateChore(group.id, first.next!.id, {});
+    await ada.undoCompleteChore(group.id, chore.id);
+
+    const second = await ada.completeChore(group.id, chore.id);
+    await ada.assignChore(group.id, second.next!.id, { assigneeId: bobId });
+    await expect(ada.undoCompleteChore(group.id, chore.id)).rejects.toMatchObject({ code: "conflict", status: 409 });
+    expect((await ada.getQueue(group.id)).chores).toMatchObject([{ id: second.next!.id, assigneeId: bobId }]);
+  });
+
   it("refuses to Undo once the next Occurrence was moved", async () => {
     const { ada, bob, group } = await setup();
     const { chore: dishes } = await ada.addChore(group.id, { title: "Dishes" });

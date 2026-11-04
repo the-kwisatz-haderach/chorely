@@ -1,5 +1,15 @@
 import type { z } from "zod";
+import { inspect } from "node:util";
 import type { ApiErrorBody, ErrorCode } from "@chorely/api-client";
+
+/**
+ * Cloud Run makes one log entry per stdout line, so in production the error (stack, `cause`, `code`)
+ * goes out as a single JSON line. Error Reporting groups it by the stack at the start of `message`.
+ */
+function logError(err: unknown) {
+  if (process.env.NODE_ENV !== "production") return console.error(err);
+  console.error(JSON.stringify({ severity: "ERROR", message: inspect(err) }));
+}
 
 const STATUS: Record<ErrorCode, number> = {
   internal_error: 500,
@@ -60,7 +70,7 @@ export async function handle(fn: () => Promise<Response>): Promise<Response> {
     return await fn();
   } catch (err) {
     if (err instanceof AppError) return errorResponse(err.code, err.message);
-    console.error(err);
+    logError(err);
     return errorResponse("internal_error", "Something went wrong");
   }
 }

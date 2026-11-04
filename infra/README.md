@@ -186,7 +186,9 @@ Terraform creates the secret containers and grants the runtime service account a
 ENV=staging
 openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add chorely-$ENV-db-password --data-file=-
 openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add chorely-$ENV-auth-secret --data-file=-
-read -rs RESEND_KEY && printf %s "$RESEND_KEY" | gcloud secrets versions add chorely-$ENV-resend-api-key --data-file=-
+# Pasting into `read` can capture the terminal's bracketed-paste markers (ESC[200~ … ESC[201~); strip them and check the shape.
+read -rs RESEND_KEY && RESEND_KEY=${RESEND_KEY#$'\e[200~'} && RESEND_KEY=${RESEND_KEY%$'\e[201~'}
+[[ $RESEND_KEY =~ ^re_[A-Za-z0-9_]+$ ]] && printf %s "$RESEND_KEY" | gcloud secrets versions add chorely-$ENV-resend-api-key --data-file=-
 ```
 
 Services read the `latest` version when a revision starts. To rotate a value, add a new version and deploy a new revision. To rotate the database password after the user exists, run `gcloud sql users set-password chorely_$ENV --instance=chorely --password="$NEW"` and add the secret version back to back, because running instances fail to reconnect until the new revision is live.

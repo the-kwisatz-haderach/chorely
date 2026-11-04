@@ -3,6 +3,12 @@
 # Runs the environment's migration job on the image, then deploys it. Migrations finish before
 # the new revision takes traffic, and are expand/contract so the previous revision keeps working
 # against the migrated schema (ADR 0006). Needs REGION and gcloud authenticated as the deployer.
+#
+# Deployer bindings each command relies on (infra/modules/environment/main.tf); staging and prod
+# differ, so check both when adding a command:
+#   services describe, deploy, update-traffic; jobs update, execute  run.developer on the service/job
+#   jobs update, deploy (run as the runtime account)                   deployer_acts_as_runtime
+#   jobs update, deploy (Cloud Run reads the image as the deployer)    staging deployer_push, prod deployer_read
 set -euo pipefail
 
 target=$1

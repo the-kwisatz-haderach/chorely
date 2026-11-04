@@ -86,7 +86,7 @@ jobs:
       - name: Migrate and deploy the staging digest
         run: .github/scripts/deploy.sh prod "$IMAGE@${{ needs.staging.outputs.digest }}"
       # Registry cleanup keeps anything tagged prod* (infra/modules/shared), so prod's image and
-      # its rollback target survive however many staging builds pile up.
+      # its rollback target survive however many staging builds pile up. Needs the deployer_tag binding.
       - name: Tag prod and prod-previous
         env:
           DIGEST: ${{ needs.staging.outputs.digest }}

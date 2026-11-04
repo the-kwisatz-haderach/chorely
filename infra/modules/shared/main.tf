@@ -3,6 +3,8 @@ locals {
     "artifactregistry.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
+    # Checks a deployer's permissions before a deploy needs them (infra/README.md).
+    "policytroubleshooter.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
     "sqladmin.googleapis.com",

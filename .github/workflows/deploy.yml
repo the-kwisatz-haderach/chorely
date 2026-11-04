@@ -68,6 +68,24 @@ jobs:
       - name: Migrate and deploy
         run: .github/scripts/deploy.sh staging "$IMAGE@${{ steps.build.outputs.digest }}"
 
+  # A prod job waiting for approval holds the deploy-prod group, so an older run left waiting
+  # keeps this one from reaching the gate. Once this commit is on staging, cancel those runs:
+  # they were never approved, so none of them is mid-deploy.
+  supersede:
+    needs: staging
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          gh run list --workflow deploy.yml --status waiting --json databaseId,number \
+            --jq ".[] | select(.number < $RUN_NUMBER) | .databaseId" |
+            xargs -r -n1 gh run cancel
+
   prod:
     needs: staging
     runs-on: ubuntu-latest

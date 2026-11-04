@@ -1,5 +1,5 @@
 import { createDb, type Database } from "./db/client";
-import { fileEmail, logEmail, resendEmail, type SendEmail } from "./email";
+import { allowlistEmail, fileEmail, logEmail, resendEmail, type SendEmail } from "./email";
 
 export interface Deps {
   db: Database;
@@ -21,8 +21,10 @@ function chooseEmail(): SendEmail {
     return fileEmail(outbox);
   }
   const key = process.env.RESEND_API_KEY;
-  if (key) return resendEmail(key, process.env.EMAIL_FROM ?? "Chorely <onboarding@resend.dev>");
-  return logEmail;
+  const send = key ? resendEmail(key, process.env.EMAIL_FROM ?? "Chorely <onboarding@resend.dev>") : logEmail;
+  // Comma-separated; set on staging (infra/modules/environment) so it only emails testers.
+  const allowlist = process.env.EMAIL_ALLOWLIST;
+  return allowlist ? allowlistEmail(allowlist.split(","), send) : send;
 }
 
 function chooseSecret(): string {

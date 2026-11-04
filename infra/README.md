@@ -24,7 +24,7 @@ terraform test                 # offline: mocked provider, no GCP credentials ne
 Needs `gcloud`, Terraform 1.11+, a GCP project with billing, and Owner on it.
 
 ```sh
-PROJECT=chorely-123456
+PROJECT=chorely-513612
 REGION=europe-north1
 gcloud auth application-default login
 gcloud config set project $PROJECT
@@ -88,7 +88,7 @@ for s in db-password auth-secret resend-api-key; do
 done
 ```
 
-The service starts on a placeholder image. The deploy workflow (#27) replaces it, and Terraform ignores image changes from then on.
+The service starts on a placeholder image. The deploy workflow (`.github/workflows/deploy.yml`) replaces it, and Terraform ignores image changes from then on.
 
 ### 6. Database isolation (after both environments exist)
 
@@ -109,12 +109,48 @@ It asks for the `postgres` password again at each `\c`. To confirm, `\c postgres
 
 ### 7. GitHub
 
-Create GitHub Environments named `staging` and `prod`, and add required reviewers to `prod`. Each Environment's deployer service account can only be used from jobs running in that Environment, so the job that builds and pushes the image must run in `staging`. The deploy workflow (#27) needs:
+Create GitHub Environments named `staging` and `prod`, and add required reviewers to `prod`. Each Environment's deployer service account can only be used from jobs running in that Environment, so the job that builds and pushes the image must run in `staging`. The deploy workflow (`.github/workflows/deploy.yml`) reads these GitHub variables (not secrets; none of them is sensitive):
 
-- `workload_identity_provider`: `terraform output github_provider_name` in `envs/shared`
-- `service_account`: `terraform output deployer_service_account` in each environment root
+| Variable                         | Where                        | Value                                                                  |
+| -------------------------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| `GCP_PROJECT_ID`                 | Repository                   | The project id                                                         |
+| `GCP_REGION`                     | Repository                   | The region, for example `europe-north1`                                |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Repository                   | `terraform output github_provider_name` in `envs/shared`               |
+| `GCP_SERVICE_ACCOUNT`            | Each Environment, separately | `terraform output deployer_service_account` in that environment's root |
+
+```sh
+gh variable set GCP_PROJECT_ID --body "$PROJECT"
+gh variable set GCP_REGION --body "$REGION"
+gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER --body "$(terraform -chdir=infra/envs/shared output -raw github_provider_name)"
+for ENV in staging prod; do
+  gh variable set GCP_SERVICE_ACCOUNT --env $ENV --body "$(terraform -chdir=infra/envs/$ENV output -raw deployer_service_account)"
+done
+```
+
+Once CI passes on main, the workflow builds the image, runs the staging migration job, deploys staging, and waits for a `prod` reviewer to approve before doing the same in prod with the same digest.
 
 After a successful prod deploy, the workflow tags the deployed image `prod` and moves the previous `prod` tag to `prod-previous`. Registry cleanup keeps the 10 newest images plus anything tagged `prod*`, so prod's image and its rollback target are never deleted. The prod deployer has a tag-only custom role for this and cannot push.
+
+### Rollback
+
+Migrations are expand/contract (ADR 0006), so the previous revision still works against the current schema. Send its traffic back:
+
+```sh
+gcloud run revisions list --service=chorely-prod --region=$REGION
+gcloud run services update-traffic chorely-prod --region=$REGION --to-revisions=<previous revision>=100
+```
+
+The next deploy moves traffic back to the latest revision. The image prod ran before is also tagged `prod-previous`.
+
+## Staging email
+
+Staging only emails addresses in `email_allowlist` and drops mail to anyone else, logging the recipient but not the code. Terraform refuses to plan staging without it, and the deploy workflow refuses to deploy a staging service that lacks it, so apply `envs/staging` with it before the first deploy.
+
+The addresses are personal and this repository is public, so they live in `envs/staging/email.auto.tfvars`, which git ignores and Terraform loads by itself. Create it, then apply:
+
+```hcl
+email_allowlist = ["you@example.com", "tester@example.com"]
+```
 
 ## Secrets
 

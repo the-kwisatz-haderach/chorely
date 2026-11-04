@@ -4,10 +4,10 @@ import { connect } from "./client";
 
 export const MIGRATIONS_FOLDER = new URL("../../../drizzle", import.meta.url).pathname;
 
-export async function runMigrations(url: string) {
+export async function runMigrations(url: string, migrationsFolder = MIGRATIONS_FOLDER) {
   const sql = connect(url, 1);
   try {
-    await migrate(drizzle(sql), { migrationsFolder: MIGRATIONS_FOLDER });
+    await migrate(drizzle(sql), { migrationsFolder });
   } finally {
     await sql.end();
   }

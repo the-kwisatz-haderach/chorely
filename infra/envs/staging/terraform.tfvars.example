@@ -1,5 +1,6 @@
-project_id   = "chorely-123456"
+project_id   = "chorely-513612"
 region       = "europe-north1"
-state_bucket = "chorely-123456-tfstate"
+state_bucket = "chorely-513612-tfstate"
 domain       = "staging.chorely.example"
 email_from   = "Chorely <login@chorely.example>"
+# email_allowlist goes in email.auto.tfvars, which git ignores (infra/README.md).

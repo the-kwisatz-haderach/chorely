@@ -48,6 +48,11 @@ variable "email_from" {
   default = null
 }
 
+# Staging emails only these addresses (testers); the app drops everything else.
+variable "email_allowlist" {
+  type = list(string)
+}
+
 data "terraform_remote_state" "shared" {
   backend = "gcs"
   config = {
@@ -69,6 +74,7 @@ module "environment" {
   push_images         = true
   domain              = var.domain
   email_from          = var.email_from
+  email_allowlist     = var.email_allowlist
   db_password         = var.db_password
 }
 

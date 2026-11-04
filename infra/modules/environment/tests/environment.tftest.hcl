@@ -22,6 +22,7 @@ variables {
   push_images         = true
   image_tagger_role   = "projects/chorely-test/roles/chorelyImageTagger"
   db_password         = "test-only"
+  email_allowlist     = ["tester@example.com", "other@example.com"]
 }
 
 run "cloud_run_scales_to_zero_and_caps_at_two" {
@@ -86,9 +87,10 @@ run "service_reaches_its_own_database_over_the_cloud_sql_socket" {
     condition = {
       for e in google_cloud_run_v2_service.app.template[0].containers[0].env : e.name => e.value if e.value != null && e.value != ""
       } == {
-      DATABASE_URL = "postgres:///chorely_staging"
-      PGHOST       = "/cloudsql/chorely-test:europe-west1:chorely"
-      PGUSER       = "chorely_staging"
+      DATABASE_URL    = "postgres:///chorely_staging"
+      PGHOST          = "/cloudsql/chorely-test:europe-west1:chorely"
+      PGUSER          = "chorely_staging"
+      EMAIL_ALLOWLIST = "tester@example.com,other@example.com"
     }
     error_message = "postgres-js reads the socket and user from PG* variables when DATABASE_URL has no host."
   }
@@ -205,9 +207,10 @@ run "prod_deploys_the_pushed_image_without_push_rights" {
   command = plan
 
   variables {
-    name        = "prod"
-    domain      = "chorely.example"
-    push_images = false
+    name            = "prod"
+    domain          = "chorely.example"
+    push_images     = false
+    email_allowlist = null
   }
 
   assert {
@@ -240,6 +243,41 @@ run "email_sender_is_set_when_given" {
   assert {
     condition     = contains([for e in google_cloud_run_v2_service.app.template[0].containers[0].env : "${e.name}=${coalesce(e.value, "-")}"], "EMAIL_FROM=Chorely <login@chorely.example>")
     error_message = "EMAIL_FROM must reach the app so mail is sent from a verified domain."
+  }
+}
+
+run "staging_only_emails_allowlisted_addresses" {
+  command = plan
+
+  assert {
+    condition     = contains([for e in google_cloud_run_v2_service.app.template[0].containers[0].env : "${e.name}=${coalesce(e.value, "-")}"], "EMAIL_ALLOWLIST=tester@example.com,other@example.com")
+    error_message = "The allowlist must reach the app, which drops mail to anyone else."
+  }
+}
+
+run "staging_requires_an_email_allowlist" {
+  command = plan
+
+  variables {
+    email_allowlist = null
+  }
+
+  expect_failures = [var.email_allowlist]
+}
+
+run "prod_emails_everyone" {
+  command = plan
+
+  variables {
+    name            = "prod"
+    domain          = "chorely.example"
+    push_images     = false
+    email_allowlist = null
+  }
+
+  assert {
+    condition     = !contains([for e in google_cloud_run_v2_service.app.template[0].containers[0].env : e.name], "EMAIL_ALLOWLIST")
+    error_message = "Prod signs in everyone, so it has no allowlist."
   }
 }
 

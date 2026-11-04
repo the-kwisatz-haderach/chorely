@@ -11,7 +11,12 @@ locals {
     PGHOST       = "/cloudsql/${var.sql_connection_name}"
     PGUSER       = local.db_name
   }
-  app_env = merge(local.db_env, var.email_from == null ? {} : { EMAIL_FROM = var.email_from })
+  app_env = merge(
+    local.db_env,
+    var.email_from == null ? {} : { EMAIL_FROM = var.email_from },
+    # The app drops mail to anyone else (apps/web/src/server/email.ts).
+    var.email_allowlist == null ? {} : { EMAIL_ALLOWLIST = join(",", var.email_allowlist) },
+  )
   secret_env = {
     PGPASSWORD     = "db-password"
     AUTH_SECRET    = "auth-secret"

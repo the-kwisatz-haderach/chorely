@@ -23,6 +23,16 @@ export function fileEmail(dir: string): SendEmail {
   };
 }
 
+/** Staging guard: delivers only to addresses in `allowlist`; drops the rest. */
+export function allowlistEmail(allowlist: string[], send: SendEmail): SendEmail {
+  const normalize = (address: string) => address.trim().toLowerCase();
+  const allowed = new Set(allowlist.map(normalize));
+  return async (email) => {
+    if (allowed.has(normalize(email.to))) return send(email);
+    console.log(`[email] dropped, not allowlisted: to=${email.to} subject=${email.subject}`);
+  };
+}
+
 export function resendEmail(apiKey: string, from: string): SendEmail {
   return async (email) => {
     const res = await fetch("https://api.resend.com/emails", {

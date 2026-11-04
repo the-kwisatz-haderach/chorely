@@ -27,16 +27,14 @@ resource "google_sql_database" "app" {
   name     = local.db_name
 }
 
-# The password is set out-of-band with `gcloud sql users set-password` (infra/README.md).
+# Cloud SQL needs a password to create a Postgres user. It is write-only, so it never enters
+# state, and it is only read on create; rotate with `gcloud sql users set-password` (infra/README.md).
 resource "google_sql_user" "app" {
   project         = var.project_id
   instance        = var.sql_instance_name
   name            = local.db_name
   deletion_policy = "ABANDON"
-
-  lifecycle {
-    ignore_changes = [password]
-  }
+  password_wo     = var.db_password
 }
 
 resource "google_project_iam_member" "runtime_sql_client" {
@@ -74,6 +72,10 @@ resource "google_cloud_run_v2_service" "app" {
   name     = local.service_name
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
+
+  # The app authenticates its own users, so the service is public. Disabling the invoker check
+  # does that without an allUsers binding, which domain-restricted sharing org policies reject.
+  invoker_iam_disabled = true
 
   template {
     service_account = google_service_account.runtime.email
@@ -188,15 +190,6 @@ resource "google_cloud_run_v2_job" "migrate" {
       template[0].template[0].containers[0].args,
     ]
   }
-}
-
-# The app authenticates its own users, so the service itself is public.
-resource "google_cloud_run_v2_service_iam_member" "public" {
-  project  = var.project_id
-  location = var.region
-  name     = google_cloud_run_v2_service.app.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
 }
 
 # Cloud Run domain mapping instead of a load balancer, which would add about $18/month (ADR 0006).

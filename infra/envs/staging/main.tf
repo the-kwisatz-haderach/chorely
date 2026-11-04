@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.7"
+  required_version = ">= 1.11"
 
   # Bucket is passed at init: terraform init -backend-config="bucket=<project>-tfstate"
   backend "gcs" {
@@ -36,6 +36,13 @@ variable "domain" {
   type = string
 }
 
+# Never stored: pass as TF_VAR_db_password from the db-password secret (infra/README.md).
+variable "db_password" {
+  type      = string
+  default   = null
+  ephemeral = true
+}
+
 variable "email_from" {
   type    = string
   default = null
@@ -62,6 +69,7 @@ module "environment" {
   push_images         = true
   domain              = var.domain
   email_from          = var.email_from
+  db_password         = var.db_password
 }
 
 output "service_name" {

@@ -21,6 +21,7 @@ variables {
   image_repository    = "chorely"
   push_images         = true
   image_tagger_role   = "projects/chorely-test/roles/chorelyImageTagger"
+  db_password         = "test-only"
 }
 
 run "cloud_run_scales_to_zero_and_caps_at_two" {
@@ -149,12 +150,8 @@ run "domain_maps_to_a_public_service" {
   }
 
   assert {
-    condition = (
-      google_cloud_run_v2_service_iam_member.public.name == "chorely-staging" &&
-      google_cloud_run_v2_service_iam_member.public.role == "roles/run.invoker" &&
-      google_cloud_run_v2_service_iam_member.public.member == "allUsers"
-    )
-    error_message = "Anyone can reach the app; it does its own auth."
+    condition     = google_cloud_run_v2_service.app.invoker_iam_disabled == true
+    error_message = "Anyone can reach the app; it does its own auth. An allUsers binding is blocked by domain-restricted sharing."
   }
 }
 

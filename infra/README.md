@@ -142,6 +142,26 @@ gcloud run services update-traffic chorely-prod --region=$REGION --to-revisions=
 
 The next deploy moves traffic back to the latest revision. The image prod ran before is also tagged `prod-previous`.
 
+### Checking deployer permissions
+
+Each command the deploy runs needs a deployer binding; the `.github/scripts/deploy.sh` header maps them. Staging and prod have different bindings, so a command that works on staging can still be denied on prod. Before merging a deploy change, check each permission it needs against the applied policy, as each deployer:
+
+```sh
+gcloud policy-intelligence troubleshoot-policy iam \
+  //artifactregistry.googleapis.com/projects/$PROJECT/locations/$REGION/repositories/chorely \
+  --principal-email=chorely-prod-deploy@$PROJECT.iam.gserviceaccount.com \
+  --permission=artifactregistry.repositories.downloadArtifacts
+```
+
+### Debugging a deploy
+
+```sh
+gh run list --workflow=Deploy
+gh run view <run id> --log-failed
+gcloud run jobs executions list --job=chorely-$ENV-migrate --region=$REGION
+gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="chorely-'$ENV'"' --limit=50 --freshness=1h
+```
+
 ## Staging email
 
 Staging only emails addresses in `email_allowlist` and drops mail to anyone else, logging the recipient but not the code. Terraform refuses to plan staging without it, and the deploy workflow refuses to deploy a staging service that lacks it, so apply `envs/staging` with it before the first deploy.

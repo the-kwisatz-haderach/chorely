@@ -62,6 +62,19 @@ jobs:
             terraform -chdir="$dir" test
           done
 
+  # The deploy path is shell and workflow YAML, and the repo is public.
+  repo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No personal email addresses in tracked files
+        run: .github/scripts/check-emails.sh
+      # Also runs shellcheck on every run: block.
+      - uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
+      - run: shellcheck .github/scripts/*.sh infra/sql/*.sh
+
   # The deploy workflow builds this image after merge; build it here so a broken image fails the PR.
   image:
     runs-on: ubuntu-latest

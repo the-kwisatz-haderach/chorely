@@ -90,9 +90,11 @@ done
 
 The service starts on a placeholder image. The deploy workflow (#27) replaces it, and Terraform ignores image changes from then on.
 
-### 6. Database isolation (one-time, per environment)
+### 6. Database isolation (after both environments exist)
 
-Cloud SQL makes every user it creates a member of `cloudsqlsuperuser`, so `chorely_staging` could otherwise read `chorely_prod`. As `postgres`, take each environment's user out of that role and grant it access to its own database only. Give `postgres` its own password (keep it in a password manager, not Secret Manager). `gcloud sql connect` needs `psql` and `cloud-sql-proxy` on `PATH` (`gcloud components install cloud-sql-proxy`, which installs into the SDK's `bin` folder).
+Cloud SQL makes every user it creates a member of `cloudsqlsuperuser`, which owns the databases, so `chorely_staging` could otherwise read `chorely_prod`. [`sql/isolate-environments.sql`](sql/isolate-environments.sql) has `postgres` take ownership of both databases and grant each environment's user its own database only; its header explains why. It is safe to re-run, and CI checks it against Postgres with Cloud SQL's role setup (`sql/test-isolation.sh`).
+
+Give `postgres` its own password (keep it in a password manager, not Secret Manager). `gcloud sql connect` needs `psql` and `cloud-sql-proxy` on `PATH` (`gcloud components install cloud-sql-proxy`, which installs into the SDK's `bin` folder). From the repo root:
 
 ```sh
 gcloud sql users set-password postgres --instance=chorely --prompt-for-password
@@ -100,19 +102,10 @@ gcloud sql connect chorely --user=postgres
 ```
 
 ```sql
-REVOKE cloudsqlsuperuser FROM chorely_staging, chorely_prod;
-REVOKE ALL ON DATABASE chorely_staging, chorely_prod FROM PUBLIC;
-GRANT CONNECT, CREATE, TEMPORARY ON DATABASE chorely_staging TO chorely_staging;
-GRANT CONNECT, CREATE, TEMPORARY ON DATABASE chorely_prod TO chorely_prod;
-
-\c chorely_staging
-GRANT USAGE, CREATE ON SCHEMA public TO chorely_staging;
-
-\c chorely_prod
-GRANT USAGE, CREATE ON SCHEMA public TO chorely_prod;
+\i infra/sql/isolate-environments.sql
 ```
 
-The databases stay owned by `cloudsqlsuperuser`: on Postgres 16+ `ALTER DATABASE ... OWNER TO` fails because `postgres` cannot `SET ROLE` to the app users. `CREATE` on the database lets migrations create their `drizzle` schema.
+It asks for the `postgres` password again at each `\c`. To confirm, `\c postgres` and check that each database's access list (`\l chorely_*`) names only `postgres` and its own user.
 
 ### 7. GitHub
 

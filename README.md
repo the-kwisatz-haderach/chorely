@@ -10,14 +10,14 @@ pnpm db:migrate          # apply checked-in SQL migrations
 pnpm dev                 # http://localhost:3000, health at /api/v1/health
 ```
 
-| Command            | What it does                                                                                     |
-| ------------------ | ------------------------------------------------------------------------------------------------ |
-| `pnpm typecheck`   | Typecheck every workspace package                                                                |
-| `pnpm lint`        | ESLint (incl. `packages/*` purity and no JSX `style`), then Stylelint (no raw colours, ADR 0005)  |
-| `pnpm test`        | Unit, lint-rule and API contract tests (needs `pnpm db:up`; each test gets its own database)     |
-| `pnpm test:e2e`    | Playwright smoke test (first run: `pnpm --filter @chorely/web exec playwright install chromium`) |
-| `pnpm db:generate` | Generate a new SQL migration after editing `apps/web/src/server/db/schema.ts`                    |
-| `pnpm db:down`     | Stop Postgres                                                                                    |
+| Command            | What it does                                                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`   | Typecheck every workspace package                                                                                                                  |
+| `pnpm lint`        | ESLint (incl. `packages/*` purity and no JSX `style`), Stylelint (no raw colours, ADR 0005), then Prettier on Markdown (`prettier --write` to fix) |
+| `pnpm test`        | Unit, lint-rule and API contract tests (needs `pnpm db:up`; each test gets its own database)                                                       |
+| `pnpm test:e2e`    | Playwright smoke test (first run: `pnpm --filter @chorely/web exec playwright install chromium`)                                                   |
+| `pnpm db:generate` | Generate a new SQL migration after editing `apps/web/src/server/db/schema.ts`                                                                      |
+| `pnpm db:down`     | Stop Postgres                                                                                                                                      |
 
 ## Layout
 

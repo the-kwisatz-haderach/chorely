@@ -11,7 +11,7 @@ const email = (to: string): Email => ({ to, subject: "Your Chorely code", text: 
 describe("allowlistEmail (staging delivers only to allowlisted addresses)", () => {
   it("delivers to an allowlisted address and drops everyone else", async () => {
     const { sent, send } = outbox();
-    const guarded = allowlistEmail("tester@example.com, other@example.com", send);
+    const guarded = allowlistEmail(["tester@example.com", "other@example.com"], send);
 
     await guarded(email("tester@example.com"));
     await guarded(email("stranger@example.com"));
@@ -19,9 +19,9 @@ describe("allowlistEmail (staging delivers only to allowlisted addresses)", () =
     expect(sent.map((e) => e.to)).toEqual(["tester@example.com"]);
   });
 
-  it("matches addresses regardless of case and spacing in the list", async () => {
+  it("matches addresses regardless of case and surrounding spaces", async () => {
     const { sent, send } = outbox();
-    const guarded = allowlistEmail(" Tester@Example.com ,\nother@example.com ", send);
+    const guarded = allowlistEmail([" Tester@Example.com ", "other@example.com\n"], send);
 
     await guarded(email("tester@example.com"));
     await guarded(email("OTHER@example.com"));
@@ -32,7 +32,7 @@ describe("allowlistEmail (staging delivers only to allowlisted addresses)", () =
   it("logs a dropped email without its body, so the sign-in code never reaches the logs", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
-      await allowlistEmail("tester@example.com", outbox().send)(email("stranger@example.com"));
+      await allowlistEmail(["tester@example.com"], outbox().send)(email("stranger@example.com"));
 
       const lines = log.mock.calls.map((args) => args.join(" "));
       expect(lines.some((l) => l.includes("stranger@example.com"))).toBe(true);

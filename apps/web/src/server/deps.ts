@@ -22,9 +22,9 @@ function chooseEmail(): SendEmail {
   }
   const key = process.env.RESEND_API_KEY;
   const send = key ? resendEmail(key, process.env.EMAIL_FROM ?? "Chorely <onboarding@resend.dev>") : logEmail;
-  // Set on staging (infra/modules/environment) so it only emails testers.
+  // Comma-separated; set on staging (infra/modules/environment) so it only emails testers.
   const allowlist = process.env.EMAIL_ALLOWLIST;
-  return allowlist ? allowlistEmail(allowlist, send) : send;
+  return allowlist ? allowlistEmail(allowlist.split(","), send) : send;
 }
 
 function chooseSecret(): string {

@@ -56,3 +56,10 @@ variable "image_tagger_role" {
   description = "Custom role that can move image tags but not push, granted to deployers without push rights."
   type        = string
 }
+
+variable "db_password" {
+  description = "The database user's password, read from the db-password secret at apply time. Only needed when the user is created."
+  type        = string
+  default     = null
+  ephemeral   = true
+}

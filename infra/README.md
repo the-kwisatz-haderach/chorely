@@ -21,7 +21,7 @@ terraform test                 # offline: mocked provider, no GCP credentials ne
 
 ## First-time setup
 
-Needs `gcloud`, Terraform 1.7+, a GCP project with billing, and Owner on it.
+Needs `gcloud`, Terraform 1.11+, a GCP project with billing, and Owner on it.
 
 ```sh
 PROJECT=chorely-123456
@@ -62,29 +62,37 @@ terraform apply
 
 ### 5. Each environment (staging first, then prod)
 
-Cloud Run will not create a service whose secrets have no value yet. Create the secret containers and the database user first, set the values out-of-band, then apply the rest:
+Cloud Run will not create a service whose secrets have no value yet. Create the secret containers first, set the values out-of-band, then apply the rest:
 
 ```sh
 ENV=staging   # then prod
 cd infra/envs/$ENV
 terraform init -backend-config="bucket=$PROJECT-tfstate"
-terraform apply \
-  -target=module.environment.google_secret_manager_secret.app \
-  -target=module.environment.google_sql_user.app
+terraform apply -target=module.environment.google_secret_manager_secret.app
 ```
 
-Set the secret values (see [Secrets](#secrets) below), then:
+Set the secret values (see [Secrets](#secrets) below). Then apply the rest, passing the database password from its secret. Cloud SQL needs it to create the user. Terraform sends it as a write-only value and never stores it in state or plan files. Later applies don't need it.
 
 ```sh
-terraform apply
+TF_VAR_db_password="$(gcloud secrets versions access latest --secret=chorely-$ENV-db-password)" \
+  terraform apply
 terraform output dns_records   # create these records at the registrar
+```
+
+If the secrets were created outside Terraform (`Error 409: Secret ... already exists`), import them instead of creating them:
+
+```sh
+for s in db-password auth-secret resend-api-key; do
+  terraform import "module.environment.google_secret_manager_secret.app[\"$s\"]" \
+    "projects/$PROJECT/secrets/chorely-$ENV-$s"
+done
 ```
 
 The service starts on a placeholder image. The deploy workflow (#27) replaces it, and Terraform ignores image changes from then on.
 
 ### 6. Database isolation (one-time, per environment)
 
-Cloud SQL makes every user it creates a member of `cloudsqlsuperuser`, so `chorely_staging` could otherwise read `chorely_prod`. As `postgres`, make each environment's user own only its own database:
+Cloud SQL makes every user it creates a member of `cloudsqlsuperuser`, so `chorely_staging` could otherwise read `chorely_prod`. As `postgres`, take each environment's user out of that role and grant it access to its own database only. Give `postgres` its own password (keep it in a password manager, not Secret Manager). `gcloud sql connect` needs `psql` and `cloud-sql-proxy` on `PATH` (`gcloud components install cloud-sql-proxy`, which installs into the SDK's `bin` folder).
 
 ```sh
 gcloud sql users set-password postgres --instance=chorely --prompt-for-password
@@ -92,13 +100,19 @@ gcloud sql connect chorely --user=postgres
 ```
 
 ```sql
-ALTER DATABASE chorely_staging OWNER TO chorely_staging;
-ALTER DATABASE chorely_prod OWNER TO chorely_prod;
-REVOKE ALL ON DATABASE chorely_staging, chorely_prod FROM PUBLIC;
 REVOKE cloudsqlsuperuser FROM chorely_staging, chorely_prod;
+REVOKE ALL ON DATABASE chorely_staging, chorely_prod FROM PUBLIC;
+GRANT CONNECT, CREATE, TEMPORARY ON DATABASE chorely_staging TO chorely_staging;
+GRANT CONNECT, CREATE, TEMPORARY ON DATABASE chorely_prod TO chorely_prod;
+
+\c chorely_staging
+GRANT USAGE, CREATE ON SCHEMA public TO chorely_staging;
+
+\c chorely_prod
+GRANT USAGE, CREATE ON SCHEMA public TO chorely_prod;
 ```
 
-These statements have not yet been run against a live instance, so check them on staging first.
+The databases stay owned by `cloudsqlsuperuser`: on Postgres 16+ `ALTER DATABASE ... OWNER TO` fails because `postgres` cannot `SET ROLE` to the app users. `CREATE` on the database lets migrations create their `drizzle` schema.
 
 ### 7. GitHub
 
@@ -113,22 +127,20 @@ After a successful prod deploy, the workflow tags the deployed image `prod` and 
 
 Terraform creates the secret containers and grants the runtime service account access. Values never appear in code or state. Set them like this, replacing `staging` with `prod` as needed:
 
-| Secret                           | App variable     | Value                                   |
-| -------------------------------- | ---------------- | --------------------------------------- |
-| `chorely-staging-db-password`    | `PGPASSWORD`     | The `chorely_staging` database password |
-| `chorely-staging-auth-secret`    | `AUTH_SECRET`    | Any long random string                  |
-| `chorely-staging-resend-api-key` | `RESEND_API_KEY` | From the Resend dashboard               |
+| Secret                           | App variable     | Value                                                                   |
+| -------------------------------- | ---------------- | ----------------------------------------------------------------------- |
+| `chorely-staging-db-password`    | `PGPASSWORD`     | Any long random string; Terraform sets it on the `chorely_staging` user |
+| `chorely-staging-auth-secret`    | `AUTH_SECRET`    | Any long random string                                                  |
+| `chorely-staging-resend-api-key` | `RESEND_API_KEY` | From the Resend dashboard                                               |
 
 ```sh
 ENV=staging
-DB_PASSWORD=$(openssl rand -hex 32)
-gcloud sql users set-password chorely_$ENV --instance=chorely --password="$DB_PASSWORD"
-printf %s "$DB_PASSWORD" | gcloud secrets versions add chorely-$ENV-db-password --data-file=-
+openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add chorely-$ENV-db-password --data-file=-
 openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add chorely-$ENV-auth-secret --data-file=-
 read -rs RESEND_KEY && printf %s "$RESEND_KEY" | gcloud secrets versions add chorely-$ENV-resend-api-key --data-file=-
 ```
 
-Services read the `latest` version when a revision starts. To rotate a value, add a new version and deploy a new revision. For the database password, run `set-password` and add the secret version back to back, because running instances fail to reconnect until the new revision is live.
+Services read the `latest` version when a revision starts. To rotate a value, add a new version and deploy a new revision. To rotate the database password after the user exists, run `gcloud sql users set-password chorely_$ENV --instance=chorely --password="$NEW"` and add the secret version back to back, because running instances fail to reconnect until the new revision is live.
 
 ## How the app reaches Postgres
 

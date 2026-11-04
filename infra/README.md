@@ -129,7 +129,7 @@ done
 
 Once CI passes on main, the workflow builds the image, runs the staging migration job, deploys staging, and waits for a `prod` reviewer to approve before doing the same in prod with the same digest.
 
-After a successful prod deploy, the workflow tags the deployed image `prod` and moves the previous `prod` tag to `prod-previous`. Registry cleanup keeps the 10 newest images plus anything tagged `prod*`, so prod's image and its rollback target are never deleted. The prod deployer has a tag-only custom role for this and cannot push.
+After a successful prod deploy, the workflow tags the deployed image `prod` and moves the previous `prod` tag to `prod-previous`. Registry cleanup keeps the 10 newest images plus anything tagged `prod*`, so prod's image and its rollback target are never deleted. The prod deployer has a tag-only custom role for this, plus read access because Cloud Run only deploys images the deployer can read. It cannot push.
 
 ### Rollback
 

@@ -257,6 +257,16 @@ resource "google_artifact_registry_repository_iam_member" "deployer_push" {
   member     = "serviceAccount:${google_service_account.deployer.email}"
 }
 
+# Cloud Run only deploys an image the deployer can read. Staging reads through its push rights.
+resource "google_artifact_registry_repository_iam_member" "deployer_read" {
+  count      = var.push_images ? 0 : 1
+  project    = var.project_id
+  location   = var.region
+  repository = var.image_repository
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${google_service_account.deployer.email}"
+}
+
 # Prod tags the image it deploys so registry cleanup keeps it (modules/shared).
 resource "google_artifact_registry_repository_iam_member" "deployer_tag" {
   count      = var.push_images ? 0 : 1

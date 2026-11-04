@@ -53,6 +53,8 @@ export interface TestApp {
   sentEmails: Email[];
   /** The most recent sign-in code emailed to `email`. */
   lastCode(email: string): string;
+  /** The app's clock. */
+  now(): Date;
   /** Moves the app's clock forward. */
   advance(ms: number): void;
   /** A client of the same app that sends `token` as a bearer token. */
@@ -121,6 +123,9 @@ export async function createTestApp(): Promise<TestApp> {
       const code = sent && /\b(\d{6})\b/.exec(sent.text)?.[1];
       if (!code) throw new Error(`No sign-in code was emailed to ${email}`);
       return code;
+    },
+    now() {
+      return new Date(nowMs);
     },
     advance(ms) {
       nowMs += ms;

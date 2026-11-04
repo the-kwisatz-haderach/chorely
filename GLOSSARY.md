@@ -66,7 +66,7 @@ A Chore that comes back into the Queue on a schedule after it is completed: ever
 _Avoid_: Repeating task, routine
 
 **Occurrence**:
-One instance of a Recurring Chore. A Recurring Chore has only one open Occurrence at a time; completing it creates the next, and Undo deletes that next one again. Deleting an open Occurrence either skips it ("Delete this one", which creates the next) or ends the series ("Delete and stop repeating"). Schedule edits apply from the next Occurrence.
+One instance of a Recurring Chore. A Recurring Chore has only one open Occurrence at a time; completing it creates the next, and Undo deletes that next one again. Undo is refused once a Member has changed that next Occurrence (assigned, claimed, edited, moved it, or made it a one-off with Stop repeating), so their change is never lost; a Member leaving the Group does not count as a change. Deleting an open Occurrence either skips it ("Delete this one", which creates the next) or ends the series ("Delete and stop repeating"). Schedule edits apply from the next Occurrence.
 _Avoid_: Instance, repeat
 
 **Invite link**:

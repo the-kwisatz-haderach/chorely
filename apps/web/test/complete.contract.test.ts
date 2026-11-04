@@ -23,10 +23,9 @@ describe("Complete, Undo and the Done list (contract, real Postgres)", () => {
     const { ada, bob, group, bobId } = await setup();
     const { chore: bins } = await ada.addChore(group.id, { title: "Bins" });
     const { chore: dishes } = await ada.addChore(group.id, { title: "Dishes" });
-    const before = Date.now();
+    app.advance(90_000);
     const res = await bob.completeChore(group.id, bins.id);
-    expect(res.chore).toMatchObject({ ...bins, completedById: bobId });
-    expect(Date.parse(res.chore.completedAt)).toBeGreaterThanOrEqual(before - 1000);
+    expect(res.chore).toMatchObject({ ...bins, completedById: bobId, completedAt: app.now().toISOString() });
     expect(res.revision).toBe(3);
     const queue = await ada.getQueue(group.id);
     expect(queue.chores.map((c) => c.id)).toEqual([dishes.id]);
@@ -76,7 +75,10 @@ describe("Complete, Undo and the Done list (contract, real Postgres)", () => {
     }
     // Complete in a scrambled order, alternating Members.
     const order = [2, 0, 4, 1, 3];
-    for (const [i, n] of order.entries()) await (i % 2 ? bob : ada).completeChore(group.id, ids[n]!);
+    for (const [i, n] of order.entries()) {
+      app.advance(1000);
+      await (i % 2 ? bob : ada).completeChore(group.id, ids[n]!);
+    }
 
     const first = await ada.getDoneList(group.id, { limit: 2 });
     expect(first.chores.map((c) => c.id)).toEqual([ids[3], ids[1]]);
@@ -96,8 +98,10 @@ describe("Complete, Undo and the Done list (contract, real Postgres)", () => {
     const ids: string[] = [];
     for (const title of ["A", "B", "C"]) ids.push((await ada.addChore(group.id, { title })).chore.id);
     await ada.completeChore(group.id, ids[0]!);
+    app.advance(1000);
     await ada.completeChore(group.id, ids[1]!);
     const first = await ada.getDoneList(group.id, { limit: 1 });
+    app.advance(1000);
     await ada.completeChore(group.id, ids[2]!);
     const second = await ada.getDoneList(group.id, { limit: 1, cursor: first.nextCursor! });
     expect(first.chores[0]!.id).toBe(ids[1]);

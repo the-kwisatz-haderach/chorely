@@ -40,6 +40,7 @@ export function resendEmail(apiKey: string, from: string): SendEmail {
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({ from, to: email.to, subject: email.subject, text: email.text }),
     });
-    if (!res.ok) throw new Error(`Resend responded ${res.status}`);
+    // The body names the cause, e.g. an unverified sender domain behind a 403.
+    if (!res.ok) throw new Error(`Resend responded ${res.status}: ${await res.text()}`);
   };
 }
